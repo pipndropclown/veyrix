@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{parseResearchDetailLevel,researchDetail}from"./researchDetail.ts";import{serializedBytes}from"./researchSummary.ts";import{getArtifact}from"./researchArtifacts.ts";import{validateNormalizedRecord}from"./normalizedResearchStore.ts";import{normalizedRecord}from"./normalizedFixtures.mjs";
+test("summary excludes detail artifacts",()=>assert.equal("artifacts"in researchDetail(normalizedRecord(),"summary"),false));
+test("standard returns compact expected sections",()=>{const value=researchDetail(normalizedRecord(),"standard");assert.ok(value.detail);assert.ok(value.manifest);assert.equal("artifacts"in value,false)});
+test("full returns complete normalized artifact set",()=>assert.ok(researchDetail(normalizedRecord(),"full").artifacts));
+test("standard response is smaller than full",()=>{const r=normalizedRecord();assert.ok(serializedBytes(researchDetail(r,"standard"))<serializedBytes(researchDetail(r,"full")))});
+test("normal detail defaults to standard",()=>assert.equal(parseResearchDetailLevel(null),"standard"));
+test("invalid detail level is rejected",()=>assert.equal(parseResearchDetailLevel("giant"),null));
+test("artifact lookup returns only requested artifact",()=>{const r=normalizedRecord(),id=r.artifactIndex[0].artifactId;assert.equal(getArtifact(r.artifacts,id).artifactId,id)});
+test("lazy artifact retrieval is pure and does not recompute",()=>{const r=normalizedRecord(),before=structuredClone(r),id=r.artifactIndex[0].artifactId;getArtifact(r.artifacts,id);assert.deepEqual(r,before)});
+test("legacy v1 record is safely rejected for v2 access",()=>assert.equal(validateNormalizedRecord({...normalizedRecord(),schemaVersion:"veyrix-store-v1"}),false));

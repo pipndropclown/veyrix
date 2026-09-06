@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";import test from "node:test";
+import { getTimeframeDefinition,normalizeCoinbaseCandle,normalizeHistoricalCandles } from "./marketCandles.ts";
+test("valid OHLC candle normalization",()=>assert.deepEqual(normalizeCoinbaseCandle([1767225600,90,110,100,105,12]),{timestamp:"2026-01-01T00:00:00.000Z",open:100,high:110,low:90,close:105,volume:12,price:105}));
+test("invalid OHLC candles are rejected safely",()=>{assert.equal(normalizeCoinbaseCandle([1767225600,110,90,100,105,12]),null);assert.equal(normalizeCoinbaseCandle(["bad",90,110,100,105,12]),null);assert.equal(normalizeCoinbaseCandle([1767225600,90,110,120,105,12]),null)});
+test("7D maps to supported one-hour interval",()=>assert.deepEqual(getTimeframeDefinition("7D"),{timeframe:"7D",days:7,granularitySeconds:3600,interval:"1 hour",expectedMaximumCandles:169}));
+test("14D maps to supported six-hour interval",()=>assert.equal(getTimeframeDefinition("14D").granularitySeconds,21600));
+test("30D maps to supported six-hour interval",()=>assert.equal(getTimeframeDefinition("30D").granularitySeconds,21600));
+test("invalid timeframe safely defaults to 7D",()=>assert.equal(getTimeframeDefinition("90D").timeframe,"7D"));
+test("normalized candles remain chronological",()=>{const values=[[1767229200,90,110,100,105,1],[1767225600,90,100,95,99,1]];assert.deepEqual(normalizeHistoricalCandles(values).candles.map(c=>c.close),[99,105])});
+test("all timeframe candle maximums stay within provider cap",()=>{for(const value of ["7D","14D","30D"])assert.ok(getTimeframeDefinition(value).expectedMaximumCandles<=300)});

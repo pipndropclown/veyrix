@@ -1,0 +1,14 @@
+import assert from"node:assert/strict";import test from"node:test";
+import{backtestExecutionConfig}from"../backtesting/backtestConfig.ts";import{momentumStrategyConfig}from"../strategy/momentumStrategy.ts";import{paperTradingConfig}from"../trading/tradingConfig.ts";import{createInitialPaperPortfolio}from"../trading/paperPortfolio.ts";import{runWalkForward,splitWalkForward}from"./walkForward.ts";
+const config={strategy:momentumStrategyConfig,paperTrading:paperTradingConfig,risk:paperTradingConfig,execution:backtestExecutionConfig};
+const candles=Array.from({length:121},(_,i)=>{const close=100+Math.sin(i/3)*3+i*.04;return{timestamp:new Date(Date.UTC(2026,0,1,i*6)).toISOString(),open:close,high:close+1,low:close-1,close,price:close,volume:1}});
+test("walk-forward split is chronological 70/30",()=>{const s=splitWalkForward(candles);assert.equal(s.inSample.length,84);assert.equal(s.outOfSample.length,37)});
+test("no candle appears in both segments",()=>{const s=splitWalkForward(candles),seen=new Set(s.inSample.map(c=>c.timestamp));assert.ok(s.outOfSample.every(c=>!seen.has(c.timestamp)))});
+test("walk-forward does not randomly shuffle",()=>{const s=splitWalkForward([...candles].reverse());assert.equal(s.inSample[0].timestamp,candles[0].timestamp);assert.equal(s.outOfSample.at(-1).timestamp,candles.at(-1).timestamp)});
+test("parameters are optimized only in-sample",()=>{const r=runWalkForward(candles,"momentum",config);assert.equal(r.inSample.result.processedObservations,84)});
+test("selected parameters remain frozen out-of-sample",()=>{const r=runWalkForward(candles,"moving_average",config),copy=structuredClone(r.selectedParameters);assert.deepEqual(r.selectedParameters,copy);assert.equal(r.outOfSample.strategyId,"moving_average")});
+test("out-of-sample result uses only OOS candles",()=>assert.equal(runWalkForward(candles,"mean_reversion",config).outOfSample.processedObservations,37));
+test("empty segments fail safely",()=>{const r=runWalkForward([],"momentum",config);assert.equal(r.overfittingRisk,"UNAVAILABLE");assert.equal(r.robustnessScore,null)});
+test("insufficient history fails safely",()=>{const r=runWalkForward(candles.slice(0,10),"moving_average",config);assert.equal(r.outOfSample,null)});
+test("performance decay is OOS return minus IS return",()=>{const r=runWalkForward(candles,"momentum",config);assert.ok(Math.abs(r.returnDecayPercent-(r.outOfSample.analytics.totalReturnPercent-r.inSample.result.analytics.totalReturnPercent))<1e-10)});
+test("walk-forward cannot mutate live state",()=>{const live=createInitialPaperPortfolio("2026-01-01"),copy=structuredClone(live);runWalkForward(candles,"mean_reversion",config);assert.deepEqual(live,copy)});

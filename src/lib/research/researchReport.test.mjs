@@ -1,0 +1,12 @@
+import assert from"node:assert/strict";import test from"node:test";import{createResearchSnapshot,generateResearchReport,researchReportToMarkdown}from"./researchReport.ts";import{reportInput}from"./researchReportFixtures.mjs";import{validateStrategyNotes}from"./researchNotes.ts";import{normalizedRecord}from"./normalizedFixtures.mjs";import{calculateNormalizedRootFingerprint}from"./researchArtifacts.ts";import{stableFingerprint}from"./researchIdentity.ts";
+test("report declares stored-data derivation",()=>assert.equal(generateResearchReport(reportInput()).generatedFromStoredData,true));
+test("report module does not expose or invoke research compute",()=>assert.equal("runResearch"in generateResearchReport(reportInput()),false));
+test("live paper state is excluded",()=>{const text=JSON.stringify(generateResearchReport(reportInput()));assert.doesNotMatch(text,/paperPortfolio|processedEvaluationIds|dailyLossState/)});
+test("disclaimer is always present",()=>assert.match(generateResearchReport(reportInput()).disclaimer,/do not predict future performance/));
+test("run ID is included",()=>assert.equal(generateResearchReport(reportInput()).runId,reportInput().summary.researchRunId));
+test("metrics match stored standard detail",()=>assert.equal(generateResearchReport(reportInput()).strategies[0].scorecard.researchScore,82));
+test("markdown export is deterministic",()=>{const report=generateResearchReport(reportInput());assert.equal(researchReportToMarkdown(report),researchReportToMarkdown(report));assert.match(researchReportToMarkdown(report),/Simulation Disclaimer/)});
+test("shareable snapshot excludes artifacts",()=>{const input=reportInput(),snapshot=createResearchSnapshot(generateResearchReport(input),input);assert.equal("artifactIndex"in snapshot,false);assert.equal(snapshot.runId,input.summary.researchRunId)});
+test("valid strategy notes are trimmed",()=>assert.deepEqual(validateStrategyNotes({momentum:" investigate drift "}),{momentum:"investigate drift"}));
+test("invalid strategy notes are rejected",()=>{assert.throws(()=>validateStrategyNotes({unknown:"note"}));assert.throws(()=>validateStrategyNotes({momentum:"x".repeat(201)}))});
+test("strategy notes do not alter research fingerprints",()=>{const record=normalizedRecord(),before=calculateNormalizedRootFingerprint(stableFingerprint(record.manifest),record.compactSummary,record.artifacts);record.strategyNotes={momentum:"note"};assert.equal(calculateNormalizedRootFingerprint(stableFingerprint(record.manifest),record.compactSummary,record.artifacts),before)});

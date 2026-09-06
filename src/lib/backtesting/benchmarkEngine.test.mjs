@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";import test from "node:test";
+import { calculateReturnDifference,runBuyAndHoldBenchmark } from "./benchmarkEngine.ts";
+import { createInitialPaperPortfolio } from "../trading/paperPortfolio.ts";
+const execution={feePercentPerSide:0,slippagePercent:0,collisionPolicy:"STOP_FIRST"};
+const candles=(prices)=>prices.map((close,index)=>({timestamp:new Date(Date.UTC(2026,0,1,index)).toISOString(),open:close,high:close,low:close,close,price:close,volume:1}));
+test("benchmark starts at configured capital",()=>assert.equal(runBuyAndHoldBenchmark(candles([100,110]),10000,execution).equityCurve[0].equity,10000));
+test("rising SOL produces positive benchmark return",()=>assert.ok(runBuyAndHoldBenchmark(candles([100,110]),10000,execution).totalReturnPercent>0));
+test("falling SOL produces negative benchmark return",()=>assert.ok(runBuyAndHoldBenchmark(candles([100,90]),10000,execution).totalReturnPercent<0));
+test("benchmark uses first and last historical prices",()=>{const result=runBuyAndHoldBenchmark(candles([100,105,110]),10000,execution);assert.equal(result.firstPrice,100);assert.equal(result.lastPrice,110)});
+test("benchmark equity is chronological",()=>{const result=runBuyAndHoldBenchmark(candles([100,90,110]),10000,execution);for(let i=1;i<result.equityCurve.length;i++)assert.ok(Date.parse(result.equityCurve[i].timestamp)>=Date.parse(result.equityCurve[i-1].timestamp))});
+test("benchmark drawdown is calculated",()=>assert.equal(runBuyAndHoldBenchmark(candles([100,120,90]),10000,execution).maximumDrawdownPercent,25));
+test("strategy return difference is simple subtraction",()=>assert.equal(calculateReturnDifference(5,-3),8));
+test("benchmark does not modify live paper state",()=>{const live=createInitialPaperPortfolio("2026-01-01"),copy=structuredClone(live);runBuyAndHoldBenchmark(candles([100,110]),10000,execution);assert.deepEqual(live,copy)});

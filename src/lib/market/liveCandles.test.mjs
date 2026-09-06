@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";import test from "node:test";
+import {aggregateCandles,candleDirection} from "./liveCandles.ts";
+const c=(time,open,high,low,close,volume=1)=>({timestamp:new Date(time).toISOString(),open,high,low,close,volume,price:close});
+test("bullish candle detection",()=>assert.equal(candleDirection(c(0,1,2,1,2)),"BULLISH"));
+test("bearish candle detection",()=>assert.equal(candleDirection(c(0,2,2,1,1)),"BEARISH"));
+test("correct timeframe aggregation",()=>assert.equal(aggregateCandles([c(0,10,12,9,11),c(300000,11,14,10,13)],600).length,1));
+test("aggregated open uses first open",()=>assert.equal(aggregateCandles([c(0,10,12,9,11),c(300000,11,14,10,13)],600)[0].open,10));
+test("aggregated high uses maximum high",()=>assert.equal(aggregateCandles([c(0,10,12,9,11),c(300000,11,14,10,13)],600)[0].high,14));
+test("aggregated low uses minimum low",()=>assert.equal(aggregateCandles([c(0,10,12,9,11),c(300000,11,14,8,13)],600)[0].low,8));
+test("aggregated close uses final close",()=>assert.equal(aggregateCandles([c(0,10,12,9,11),c(300000,11,14,10,13)],600)[0].close,13));
+test("aggregated volume is summed",()=>assert.equal(aggregateCandles([c(0,10,12,9,11,3),c(300000,11,14,10,13,4)],600)[0].volume,7));
+test("duplicate candles are filtered",()=>assert.equal(aggregateCandles([c(0,10,12,9,11),c(0,10,12,9,11)],60).length,1));
+test("invalid OHLC is rejected",()=>assert.equal(aggregateCandles([c(0,10,8,9,11)],60).length,0));

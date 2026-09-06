@@ -1,0 +1,13 @@
+import "server-only";
+import { buildHistoricalRequestRanges,calculateHistoricalDataQuality,getHistoricalTimeframeDefinition,mergeHistoricalChunks } from "./marketCandles";
+import type { BacktestTimeframe,HistoricalDataSet } from "@/types/backtesting";
+const PRODUCT="SOL-USD",REQUEST_TIMEOUT_MS=8000,CACHE_MS=15*60*1000;
+const cache=new Map<string,{data:HistoricalDataSet;expiresAt:number}>();
+export async function getHistoricalSolData(timeframe:BacktestTimeframe="7D",now=Date.now(),anchor?:string):Promise<HistoricalDataSet>{
+  const definition=getHistoricalTimeframeDefinition(timeframe),anchorTime=anchor?Date.parse(anchor):now;if(!Number.isFinite(anchorTime)||anchorTime>now)throw new Error("Invalid historical anchor");const end=new Date(Math.floor(anchorTime/definition.granularitySeconds/1000)*definition.granularitySeconds*1000),cacheKey=`${definition.timeframe}:${end.toISOString()}`,cached=cache.get(cacheKey);if(cached&&cached.expiresAt>now)return cached.data;
+  const start=new Date(end.getTime()-definition.days*86400000),ranges=buildHistoricalRequestRanges(start,end,definition.granularitySeconds);if(!ranges.length)throw new Error("Historical request plan is invalid");const chunks:unknown[]=[];
+  for(const range of ranges){const url=new URL(`https://api.exchange.coinbase.com/products/${PRODUCT}/candles`);url.searchParams.set("granularity",String(definition.granularitySeconds));url.searchParams.set("start",range.start.toISOString());url.searchParams.set("end",range.end.toISOString());const response=await fetch(url,{cache:"no-store",headers:{Accept:"application/json","User-Agent":"Veyrix-Paper-Research/0.10"},signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS)});if(!response.ok)throw new Error(`Historical provider returned ${response.status}`);const raw=await response.json() as unknown;if(!Array.isArray(raw)||raw.length>range.expectedMaximumCandles||raw.length>300)throw new Error("Historical provider returned invalid data");chunks.push(raw)}
+  const merged=mergeHistoricalChunks(chunks),candles=merged.candles;if(candles.length===0||candles.length>definition.expectedMaximumCandles)throw new Error("Historical provider returned an unsafe observation count");const quality=calculateHistoricalDataQuality(candles,definition.expectedMaximumCandles,definition.granularitySeconds,merged.duplicatesRemoved,merged.invalidRemoved);
+  const data:HistoricalDataSet={source:"Coinbase Exchange",sourcePair:"SOL-USD",interval:definition.interval,timeframe:definition.timeframe,fetchedAt:new Date(now).toISOString(),observations:candles,quality};
+  cache.set(cacheKey,{data,expiresAt:now+CACHE_MS});return data;
+}

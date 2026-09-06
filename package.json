@@ -1,0 +1,39 @@
+{
+  "name": "veyrix",
+  "version": "1.1.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/lib/market/liveCandles.test.mjs src/lib/trading/automationEngine.test.mjs src/lib/trading/manualPaperTrading.test.mjs src/lib/trading/walletSafety.test.mjs src/lib/strategy/momentumStrategy.test.mjs src/lib/strategy/movingAverageStrategy.test.mjs src/lib/strategy/meanReversionStrategy.test.mjs src/lib/trading/paperEngine.test.mjs src/lib/trading/riskEngine.test.mjs src/lib/analytics/performanceAnalytics.test.mjs src/lib/analytics/veyrixScore.test.mjs src/lib/backtesting/backtestEngine.test.mjs src/lib/backtesting/genericEngine.test.mjs src/lib/backtesting/executionModel.test.mjs src/lib/backtesting/benchmarkEngine.test.mjs src/lib/backtesting/exposureBenchmark.test.mjs src/lib/backtesting/marketCandles.test.mjs src/lib/backtesting/longHistory.test.mjs src/lib/backtesting/extendedHistory.test.mjs src/lib/optimization/parameterSensitivity.test.mjs src/lib/optimization/walkForward.test.mjs src/lib/optimization/robustness.test.mjs src/lib/optimization/rollingWindows.test.mjs src/lib/optimization/regimeClassifier.test.mjs src/lib/optimization/crossWindowAnalytics.test.mjs src/lib/optimization/multiRegimeRobustness.test.mjs src/lib/validation/nonOverlapping.test.mjs src/lib/validation/expanding.test.mjs src/lib/validation/agreement.test.mjs src/lib/validation/regimeFailure.test.mjs src/lib/validation/researchScore.test.mjs src/lib/research/researchIdentity.test.mjs src/lib/research/fingerprints.test.mjs src/lib/research/anchorValidation.test.mjs src/lib/research/researchCache.test.mjs src/lib/research/multiAnchor.test.mjs src/lib/research/researchStore.test.mjs src/lib/research/layeredResearchStore.test.mjs src/lib/research/researchSummary.test.mjs src/lib/research/researchLibrary.test.mjs src/lib/research/researchArtifacts.test.mjs src/lib/research/normalizedResearchStore.test.mjs src/lib/research/researchDetail.test.mjs src/lib/research/researchSummaryGenerator.test.mjs src/lib/research/strategyVerdict.test.mjs src/lib/research/failureProfile.test.mjs src/lib/research/conclusionDrift.test.mjs src/lib/research/researchReport.test.mjs src/lib/auth/authSafety.test.mjs src/lib/theme/theme.test.mjs",
+    "test:momentum": "node --test src/lib/strategy/momentumStrategy.test.mjs",
+    "test:paper": "node --test src/lib/trading/paperEngine.test.mjs",
+    "test:risk": "node --test src/lib/trading/riskEngine.test.mjs",
+    "test:analytics": "node --test src/lib/analytics/performanceAnalytics.test.mjs",
+    "test:backtest": "node --test src/lib/backtesting/backtestEngine.test.mjs src/lib/backtesting/executionModel.test.mjs src/lib/backtesting/benchmarkEngine.test.mjs src/lib/backtesting/marketCandles.test.mjs"
+  },
+  "dependencies": {
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/web3.js": "^1.98.4",
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.115.0",
+    "lightweight-charts": "^5.2.1",
+    "next": "16.3.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

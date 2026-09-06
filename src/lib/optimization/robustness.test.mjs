@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{calculateParameterStability}from"./parameterSensitivity.ts";import{calculateRobustness,classifyOverfitting}from"./walkForward.ts";
+const run=(parameters,ret,score)=>({parameters,veyrixScore:score,result:{analytics:{totalReturnPercent:ret}}});
+test("stable neighboring parameters produce higher stability",()=>{const best=run({momentumThresholdPercent:.35,averageDeviationThresholdPercent:.15},5,80),stable=[best,run({momentumThresholdPercent:.2,averageDeviationThresholdPercent:.15},4.9,79)],unstable=[best,run({momentumThresholdPercent:.2,averageDeviationThresholdPercent:.15},-5,20)];assert.ok(calculateParameterStability(best,stable,"momentum").score>calculateParameterStability(best,unstable,"momentum").score)});
+test("unstable neighboring parameters reduce stability",()=>{const best=run({momentumThresholdPercent:.35,averageDeviationThresholdPercent:.15},10,90),other=run({momentumThresholdPercent:.5,averageDeviationThresholdPercent:.15},-10,5);assert.ok(calculateParameterStability(best,[best,other],"momentum").score<25)});
+test("good out-of-sample score improves robustness",()=>assert.ok(calculateRobustness(80,80,0,2,2)>calculateRobustness(20,80,0,2,2)));
+test("severe OOS decay reduces robustness",()=>assert.ok(calculateRobustness(70,80,0,2,2)>calculateRobustness(70,80,-10,2,2)));
+test("drawdown deterioration reduces robustness",()=>assert.ok(calculateRobustness(70,80,0,2,2)>calculateRobustness(70,80,0,2,10)));
+test("robustness score remains bounded 0 to 100",()=>{assert.equal(calculateRobustness(1000,1000,0,0,0),100);assert.equal(calculateRobustness(-100,-100,-100,0,100),0)});
+test("missing robustness metrics fail safely",()=>assert.equal(calculateRobustness(Number.NaN,50,0,1,1),null));
+test("overfitting heuristic classifications are deterministic",()=>{assert.equal(classifyOverfitting(90,0,0,2,2),"LOW");assert.equal(classifyOverfitting(60,0,0,2,2),"MODERATE");assert.equal(classifyOverfitting(20,-5,-40,5,-1),"HIGH");assert.equal(classifyOverfitting(NaN,0,0,0,0),"UNAVAILABLE")});

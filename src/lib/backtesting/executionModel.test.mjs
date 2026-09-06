@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";import test from "node:test";
+import { adverseEntryPrice,adverseExitPrice,calculateFee,evaluateIntrabarRisk,simulateLongEntry,simulateLongExit } from "./executionModel.ts";
+const execution={feePercentPerSide:.1,slippagePercent:.05,collisionPolicy:"STOP_FIRST"},candle=(low,high,close=100)=>({timestamp:"2026-01-01T00:00:00.000Z",open:100,low,high,close,price:close,volume:1});
+test("stop-loss triggers from candle low while close stays above stop",()=>assert.equal(evaluateIntrabarRisk(100,candle(97,101,100),{stopLossPercent:2,takeProfitPercent:4},"STOP_FIRST")?.reason,"STOP_LOSS"));
+test("take-profit triggers from candle high while close stays below target",()=>assert.equal(evaluateIntrabarRisk(100,candle(99,105,100),{stopLossPercent:2,takeProfitPercent:4},"STOP_FIRST")?.reason,"TAKE_PROFIT"));
+test("same candle collision follows STOP_FIRST",()=>{const result=evaluateIntrabarRisk(100,candle(97,105),{stopLossPercent:2,takeProfitPercent:4},"STOP_FIRST");assert.equal(result?.collision,true);assert.equal(result?.reason,"STOP_LOSS")});
+test("BUY fee calculation is correct",()=>assert.equal(simulateLongEntry(1001,100,{...execution,slippagePercent:0})?.fee,1));
+test("SELL fee calculation is correct",()=>assert.equal(calculateFee(1000,.1),1));
+test("slippage worsens LONG entry",()=>assert.equal(adverseEntryPrice(100,.05),100.05));
+test("slippage worsens LONG exit",()=>assert.equal(adverseExitPrice(100,.05),99.95));
+test("net P&L includes fees and slippage exactly once",()=>{const entry=simulateLongEntry(1000,100,execution),exit=simulateLongExit(entry.quantity,110,execution);const gross=entry.quantity*10,net=exit.netProceeds-entry.cashCost;assert.ok(Math.abs(net-(gross-entry.slippageCost-exit.slippageCost-entry.fee-exit.fee))<1e-8)});
+test("stop execution receives adverse deterministic slippage",()=>{const risk=evaluateIntrabarRisk(100,candle(97,100),{stopLossPercent:2,takeProfitPercent:4},"STOP_FIRST"),exit=simulateLongExit(1,risk.idealExitPrice,execution);assert.equal(exit.executedPrice,98*(1-.0005))});
+test("target execution receives adverse deterministic slippage",()=>{const risk=evaluateIntrabarRisk(100,candle(100,105),{stopLossPercent:2,takeProfitPercent:4},"STOP_FIRST"),exit=simulateLongExit(1,risk.idealExitPrice,execution);assert.equal(exit.executedPrice,104*(1-.0005))});
+test("transaction costs cannot produce NaN or Infinity",()=>{for(const value of [simulateLongEntry(Infinity,100,execution),simulateLongExit(1,Infinity,execution)])assert.equal(value,null);assert.ok(Number.isFinite(calculateFee(Infinity,.1)))});

@@ -1,0 +1,11 @@
+import assert from"node:assert/strict";import test from"node:test";import{calculateCrossWindowAnalytics,calculateCrossWindowConsistency}from"./multiRegimeAnalysis.ts";
+const window=(ret,matched=0,full=0,robustness=70,score=60,risk="LOW",dd=2)=>({outOfSampleReturnPercent:ret,matchedBenchmarkReturnPercent:matched,fullBenchmarkReturnPercent:full,robustnessScore:robustness,outOfSampleVeyrixScore:score,parameterStability:80,overfittingRisk:risk,walkForward:{outOfSample:{analytics:{maximumDrawdownPercent:dd}}}});
+test("profitable-window rate is calculated",()=>assert.ok(Math.abs(calculateCrossWindowAnalytics([window(1),window(-1),window(2)]).profitableWindowPercent-200/3)<1e-10));
+test("average OOS return is calculated",()=>assert.equal(calculateCrossWindowAnalytics([window(1),window(2),window(3)]).averageOutOfSampleReturnPercent,2));
+test("median OOS return is calculated",()=>assert.equal(calculateCrossWindowAnalytics([window(9),window(1),window(3),window(5)]).medianOutOfSampleReturnPercent,4));
+test("worst OOS window is calculated",()=>assert.equal(calculateCrossWindowAnalytics([window(1),window(-4),window(2)]).worstOutOfSampleReturnPercent,-4));
+test("OOS return standard deviation is calculated",()=>assert.ok(Math.abs(calculateCrossWindowAnalytics([window(1),window(2),window(3)]).standardDeviationOutOfSampleReturns-Math.sqrt(2/3))<1e-10));
+test("matched benchmark beat rate is calculated",()=>assert.equal(calculateCrossWindowAnalytics([window(2,1),window(0,1)]).matchedBenchmarkBeatRatePercent,50));
+test("full benchmark beat rate is calculated",()=>assert.equal(calculateCrossWindowAnalytics([window(2,1,1),window(0,1,1)]).fullBenchmarkBeatRatePercent,50));
+test("cross-window consistency rewards consistent profitability",()=>assert.ok(calculateCrossWindowConsistency(100,.2,2,0)>calculateCrossWindowConsistency(25,5,30,50)));
+test("missing cross-window metrics are handled safely",()=>{const empty=calculateCrossWindowAnalytics([]);assert.equal(empty.averageOutOfSampleReturnPercent,null);assert.equal(empty.crossWindowConsistency,null);assert.equal(calculateCrossWindowConsistency(NaN,0,0,0),null)});

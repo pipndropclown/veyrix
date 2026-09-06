@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{buildHistoricalRequestRanges,calculateHistoricalDataQuality,getHistoricalTimeframeDefinition,mergeHistoricalChunks}from"./marketCandles.ts";
+const raw=(hour,price=100)=>[Date.UTC(2026,0,1,hour)/1000,price-1,price+1,price,price,1],candle=(hour,price=100)=>({timestamp:new Date(Date.UTC(2026,0,1,hour)).toISOString(),open:price,high:price+1,low:price-1,close:price,price,volume:1});
+test("180D maps to six-hour history",()=>{const d=getHistoricalTimeframeDefinition("180D");assert.equal(d.expectedMaximumCandles,721);assert.equal(d.granularitySeconds,21600)});
+test("365D is truthfully supported with six-hour candles",()=>{const d=getHistoricalTimeframeDefinition("365D");assert.equal(d.expectedMaximumCandles,1461);assert.equal(d.interval,"6 hours")});
+test("extended history builds bounded multiple requests",()=>{const d=getHistoricalTimeframeDefinition("365D"),ranges=buildHistoricalRequestRanges(new Date("2025-01-01"),new Date("2026-01-01"),d.granularitySeconds);assert.equal(ranges.length,5);assert.ok(ranges.every(range=>range.expectedMaximumCandles<=300))});
+test("extended chunks remove duplicate boundaries",()=>assert.equal(mergeHistoricalChunks([[raw(0),raw(6)],[raw(6),raw(12)]]).duplicatesRemoved,1));
+test("data quality detects missing candles",()=>assert.equal(calculateHistoricalDataQuality([candle(0),candle(12)],3,21600).missingIntervalCount,1));
+test("data quality reports removals and boundaries",()=>{const q=calculateHistoricalDataQuality([candle(0),candle(6)],2,21600,2,3);assert.equal(q.duplicateCountRemoved,2);assert.equal(q.invalidCandleCountRemoved,3);assert.equal(q.firstTimestamp,candle(0).timestamp);assert.equal(q.lastTimestamp,candle(6).timestamp)});
+test("historical coverage percentage is calculated",()=>assert.equal(calculateHistoricalDataQuality([candle(0),candle(6)],4,21600).coveragePercent,50));
+test("sequential extended chunks merge chronologically",()=>assert.deepEqual(mergeHistoricalChunks([[raw(12),raw(6)],[raw(24),raw(18)]]).candles.map(c=>c.close),[100,100,100,100]));

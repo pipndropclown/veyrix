@@ -1,0 +1,8 @@
+import { evaluateMomentum,momentumStrategyConfig } from "./momentumStrategy.ts";import { evaluateMovingAverage,movingAverageConfig } from "./movingAverageStrategy.ts";import { evaluateMeanReversion,meanReversionConfig } from "./meanReversionStrategy.ts";import type { StrategyDefinition,StrategyId } from "@/types/strategy";
+export const strategyRegistry:Readonly<Record<StrategyId,StrategyDefinition>>={
+ momentum:{id:"momentum",name:"Momentum Agent",description:"Trades confirmed short-term directional strength.",minimumObservations:momentumStrategyConfig.minimumObservations,maximumObservations:momentumStrategyConfig.lookbackObservations,configuration:momentumStrategyConfig,evaluate:observations=>{const result=evaluateMomentum(observations);return{...result,metrics:{...result.metrics}}}},
+ moving_average:{id:"moving_average",name:"Moving Average Agent",description:"Trades actual fast and slow simple-moving-average crossovers.",minimumObservations:movingAverageConfig.slowPeriod+1,maximumObservations:movingAverageConfig.slowPeriod+1,configuration:movingAverageConfig,evaluate:observations=>evaluateMovingAverage(observations)},
+ mean_reversion:{id:"mean_reversion",name:"Mean Reversion Agent",description:"Looks for unusually depressed prices relative to a recent average.",minimumObservations:meanReversionConfig.lookbackPeriod,maximumObservations:meanReversionConfig.lookbackPeriod,configuration:meanReversionConfig,evaluate:observations=>evaluateMeanReversion(observations)},
+};
+export const strategyList=Object.values(strategyRegistry);
+export const getStrategy=(id:unknown)=>typeof id==="string"&&id in strategyRegistry?strategyRegistry[id as StrategyId]:strategyRegistry.momentum;

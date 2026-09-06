@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{buildHistoricalRequestRanges,COINBASE_MAX_CANDLES_PER_REQUEST,getHistoricalTimeframeDefinition,mergeHistoricalChunks}from"./marketCandles.ts";
+const raw=(hour,price=100)=>[Date.UTC(2026,0,1,hour)/1000,price-1,price+1,price,price,10];
+test("chunked historical retrieval merges chronologically",()=>{const result=mergeHistoricalChunks([[raw(6),raw(0)],[raw(18),raw(12)]]);assert.deepEqual(result.candles.map(c=>c.timestamp),[0,6,12,18].map(h=>new Date(Date.UTC(2026,0,1,h)).toISOString()))});
+test("duplicate chunk boundary candles are removed",()=>assert.equal(mergeHistoricalChunks([[raw(0),raw(6)],[raw(6),raw(12)]]).candles.length,3));
+test("invalid provider chunks fail safely",()=>{const result=mergeHistoricalChunks([[raw(0)],{bad:true},[["bad"]]]);assert.equal(result.candles.length,1);assert.ok(result.ignored>=2)});
+test("30D long-history mapping works",()=>{const d=getHistoricalTimeframeDefinition("30D");assert.equal(d.granularitySeconds,21600);assert.equal(d.expectedMaximumCandles,121)});
+test("60D mapping works",()=>{const d=getHistoricalTimeframeDefinition("60D");assert.equal(d.expectedMaximumCandles,241);assert.equal(buildHistoricalRequestRanges(new Date("2026-01-01"),new Date("2026-03-02"),d.granularitySeconds).length,1)});
+test("90D mapping works",()=>{const d=getHistoricalTimeframeDefinition("90D");assert.equal(d.expectedMaximumCandles,361);assert.equal(buildHistoricalRequestRanges(new Date("2026-01-01"),new Date("2026-04-01"),d.granularitySeconds).length,2)});
+test("historical request ranges remain within Coinbase limit",()=>{const ranges=buildHistoricalRequestRanges(new Date("2026-01-01T00:00:00Z"),new Date("2026-04-01T00:00:00Z"),21600);assert.equal(ranges.length,2);assert.ok(ranges.every(range=>range.expectedMaximumCandles<=COINBASE_MAX_CANDLES_PER_REQUEST))});
+test("merged historical dataset has no duplicate timestamps",()=>{const merged=mergeHistoricalChunks([[raw(0),raw(6),raw(12)],[raw(6),raw(12),raw(18)]]).candles;assert.equal(new Set(merged.map(c=>c.timestamp)).size,merged.length)});

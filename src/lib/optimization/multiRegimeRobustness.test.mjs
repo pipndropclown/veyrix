@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{calculateMultiRegimeScore,calculateParameterDrift,classifyReliability}from"./multiRegimeAnalysis.ts";
+const selected=parameters=>({selectedParameters:parameters});
+test("strong consistent inputs improve multi-regime score",()=>assert.ok(calculateMultiRegimeScore(90,90,100,90)>calculateMultiRegimeScore(40,40,25,20)));
+test("poor consistency reduces multi-regime score",()=>assert.ok(calculateMultiRegimeScore(70,90,75,70)>calculateMultiRegimeScore(70,10,75,70)));
+test("poor regime coverage reduces multi-regime score",()=>assert.ok(calculateMultiRegimeScore(70,70,100,70)>calculateMultiRegimeScore(70,70,25,70)));
+test("benchmark underperformance reduces multi-regime score",()=>assert.ok(calculateMultiRegimeScore(70,70,75,100)>calculateMultiRegimeScore(70,70,75,0)));
+test("multi-regime score stays 0 to 100",()=>{assert.equal(calculateMultiRegimeScore(1000,1000,1000,1000),100);assert.equal(calculateMultiRegimeScore(-100,-100,-100,-100),0)});
+test("reliability classification is deterministic",()=>{assert.equal(classifyReliability(80,70,10),"STRONG");assert.equal(classifyReliability(65,55,30),"PROMISING");assert.equal(classifyReliability(45,20,80),"MIXED");assert.equal(classifyReliability(20,80,0),"WEAK");assert.equal(classifyReliability(NaN,50,0),"UNAVAILABLE")});
+test("parameter drift classification works",()=>{const low=calculateParameterDrift("moving_average",[selected({fastPeriod:5,slowPeriod:12}),selected({fastPeriod:5,slowPeriod:12})]),high=calculateParameterDrift("moving_average",[selected({fastPeriod:3,slowPeriod:9}),selected({fastPeriod:7,slowPeriod:15}),selected({fastPeriod:3,slowPeriod:9})]);assert.equal(low.classification,"LOW");assert.equal(high.classification,"HIGH")});
+test("temporal parameter stability stays bounded",()=>{for(const id of["momentum","moving_average","mean_reversion"]){const report=calculateParameterDrift(id,[]);assert.ok(report.temporalStability===null||(report.temporalStability>=0&&report.temporalStability<=100))}});

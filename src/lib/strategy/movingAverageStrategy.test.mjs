@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{evaluateMovingAverage}from"./movingAverageStrategy.ts";
+const obs=p=>p.map((price,i)=>({timestamp:new Date(Date.UTC(2026,0,1,i)).toISOString(),price})),config={fastPeriod:2,slowPeriod:3};
+test("MA insufficient history holds",()=>assert.equal(evaluateMovingAverage(obs([1,2,3]),config).signal,"HOLD"));
+test("true bullish crossover buys",()=>assert.equal(evaluateMovingAverage(obs([3,2,1,4]),config).signal,"BUY"));
+test("already above without crossover holds",()=>assert.equal(evaluateMovingAverage(obs([1,2,3,4]),config).signal,"HOLD"));
+test("true bearish crossover sells",()=>assert.equal(evaluateMovingAverage(obs([1,2,3,.5]),config).signal,"SELL"));
+test("already below without crossover holds",()=>assert.equal(evaluateMovingAverage(obs([4,3,2,1]),config).signal,"HOLD"));
+test("flat prices hold",()=>assert.equal(evaluateMovingAverage(obs([2,2,2,2]),config).signal,"HOLD"));
+test("MA confidence remains bounded",()=>{for(const p of [[3,2,1,100],[100,2,3,1],[2,2,2,2]]){const c=evaluateMovingAverage(obs(p),config).confidence;assert.ok(c>=0&&c<=100)}});
+test("MA invalid observations are safe",()=>assert.equal(evaluateMovingAverage([...obs([3,2,1]),{timestamp:"bad",price:Infinity}],config).signal,"HOLD"));

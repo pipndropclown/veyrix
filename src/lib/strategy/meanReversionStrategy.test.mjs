@@ -1,0 +1,10 @@
+import assert from"node:assert/strict";import test from"node:test";import{evaluateMeanReversion}from"./meanReversionStrategy.ts";
+const obs=p=>p.map((price,i)=>({timestamp:new Date(Date.UTC(2026,0,1,i)).toISOString(),price})),config={lookbackPeriod:4,buyDeviationPercent:-1,sellDeviationPercent:0};
+test("mean reversion insufficient history holds",()=>assert.equal(evaluateMeanReversion(obs([100,99]),config).signal,"HOLD"));
+test("significantly below average buys",()=>assert.equal(evaluateMeanReversion(obs([100,100,100,95]),config).signal,"BUY"));
+test("small negative deviation holds",()=>assert.equal(evaluateMeanReversion(obs([100,100,100,99.5]),config).signal,"HOLD"));
+test("returning to average sells",()=>assert.equal(evaluateMeanReversion(obs([95,100,100,100]),config).signal,"SELL"));
+test("above average emits exit signal only",()=>assert.equal(evaluateMeanReversion(obs([95,95,95,100]),config).signal,"SELL"));
+test("mean reversion confidence remains bounded",()=>{for(const p of [[100,100,100,1],[1,1,1,100],[2,2,2,2]]){const c=evaluateMeanReversion(obs(p),config).confidence;assert.ok(c>=0&&c<=100)}});
+test("mean reversion invalid observations are safe",()=>assert.equal(evaluateMeanReversion([...obs([100,100,100]),{timestamp:"bad",price:-1}],config).signal,"HOLD"));
+test("flat mean reversion series behaves safely",()=>{const r=evaluateMeanReversion(obs([100,100,100,100]),config);assert.equal(r.signal,"SELL");assert.ok(Number.isFinite(r.confidence))});

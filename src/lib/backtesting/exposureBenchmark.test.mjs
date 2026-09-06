@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";import test from "node:test";
+import{calculateReturnDifference,runBuyAndHoldBenchmark,runExposureMatchedBenchmark}from"./benchmarkEngine.ts";
+const free={feePercentPerSide:0,slippagePercent:0,collisionPolicy:"STOP_FIRST"},costs={feePercentPerSide:.1,slippagePercent:.05,collisionPolicy:"STOP_FIRST"};
+const candles=prices=>prices.map((close,index)=>({timestamp:new Date(Date.UTC(2026,0,1,index)).toISOString(),open:close,high:close,low:close,close,price:close,volume:1}));
+test("matched benchmark starts at $10,000",()=>assert.equal(runExposureMatchedBenchmark(candles([100,110]),10000,10,free).equityCurve[0].equity,10000));
+test("only configured allocation is exposed to SOL",()=>assert.equal(runExposureMatchedBenchmark(candles([100,200]),10000,10,free).netProfit,1000));
+test("remaining benchmark capital stays cash",()=>assert.equal(runExposureMatchedBenchmark(candles([100,100]),10000,10,free).finalBalance,10000));
+test("rising SOL increases matched benchmark appropriately",()=>assert.equal(runExposureMatchedBenchmark(candles([100,110]),10000,10,free).totalReturnPercent,1));
+test("falling SOL decreases matched benchmark appropriately",()=>assert.equal(runExposureMatchedBenchmark(candles([100,90]),10000,10,free).totalReturnPercent,-1));
+test("matched benchmark applies fee and slippage assumptions",()=>{const result=runExposureMatchedBenchmark(candles([100,100]),10000,10,costs);assert.ok(result.finalBalance<10000);assert.ok(result.entryFeeUsd>0);assert.ok(result.exitFeeUsd>0);assert.ok(result.estimatedSlippageCostUsd>0)});
+test("full and matched benchmarks remain separate",()=>{const data=candles([100,120]),full=runBuyAndHoldBenchmark(data,10000,free),matched=runExposureMatchedBenchmark(data,10000,10,free);assert.notEqual(full.finalBalance,matched.finalBalance);assert.equal(full.netProfit,matched.netProfit*10)});
+test("return comparisons use simple subtraction",()=>{assert.equal(calculateReturnDifference(2,10),-8);assert.equal(calculateReturnDifference(2,1),1)});

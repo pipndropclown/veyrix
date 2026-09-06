@@ -1,0 +1,9 @@
+import assert from"node:assert/strict";import test from"node:test";import{isStoredResearchRecord,MemoryResearchStore,validateResearchNote}from"./researchStore.ts";import{createResearchRunId,researchVersions}from"./researchIdentity.ts";import{storedRecord}from"./researchTestFixtures.mjs";
+test("store put/get round trip",async()=>{const s=new MemoryResearchStore(),r=storedRecord();await s.put(r);assert.deepEqual(await s.get(r.researchRunId),r)});
+test("missing store key returns null",async()=>assert.equal(await new MemoryResearchStore().get("missing"),null));
+test("corrupt record is rejected",()=>assert.equal(isStoredResearchRecord({...storedRecord(),resultFingerprint:"bad"}),false));
+test("unsupported schema is rejected",()=>assert.equal(isStoredResearchRecord({...storedRecord(),schemaVersion:"old"}),false));
+test("store delete works",async()=>{const s=new MemoryResearchStore(),r=storedRecord();await s.put(r);await s.delete(r.researchRunId);assert.equal(await s.has(r.researchRunId),false)});
+test("listing respects cap",async()=>{const s=new MemoryResearchStore();for(let i=0;i<4;i++)await s.put(storedRecord(`VRX-${String(i).padStart(24,"a")}`,new Date(2026,0,i+1).toISOString()));assert.equal((await s.list(2)).length,2)});
+test("listing is newest first",async()=>{const s=new MemoryResearchStore(),old=storedRecord("VRX-aaaaaaaaaaaaaaaaaaaaaaa1","2026-01-01T00:00:00Z"),fresh=storedRecord("VRX-aaaaaaaaaaaaaaaaaaaaaaa2","2026-02-01T00:00:00Z");await s.put(old);await s.put(fresh);assert.equal((await s.list())[0].researchRunId,fresh.researchRunId)});
+test("notes do not alter deterministic run ID",()=>{const config={strategies:["momentum"],timeframe:"180D",anchor:"2026-01-01T00:00:00Z",validationMethod:"ALL",versions:researchVersions,execution:{},risk:{},validation:{},historical:{}};const id=createResearchRunId(config,"data");validateResearchNote("Baseline note");assert.equal(createResearchRunId(config,"data"),id)});
