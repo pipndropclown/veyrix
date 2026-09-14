@@ -679,6 +679,16 @@ footer p {
     line-height: 1.4;
   }
 }
+.trading-mode-selector { margin: 18px 0; width: fit-content; }
+.futures-banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border: 1px solid #e7a84a; border-radius: 10px; color: #e7a84a; font-size: .82rem; letter-spacing: .06em; }
+.futures-panel { margin: 20px 0; }
+.futures-panel h2, .futures-panel h3 { margin: 18px 0 10px; }
+.futures-stats, .futures-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; margin: 16px 0; }
+.futures-stats > div { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px solid var(--border, #334155); border-radius: 8px; }
+.futures-stats span { font-size: .78rem; opacity: .7; }
+.futures-fields label { display: flex; flex-direction: column; gap: 6px; }
+.futures-fields input, .futures-fields select { width: 100%; padding: 9px; border-radius: 6px; border: 1px solid var(--border, #334155); background: var(--surface, #111827); color: inherit; }
+.futures-position { padding: 14px; border: 1px solid var(--border, #334155); border-radius: 8px; }
 .status-pill.unavailable {
   color: var(--red);
 }

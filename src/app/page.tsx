@@ -9,7 +9,7 @@ export default function Home() {
         <ProductHero />
         <LiveMarketSection />
         <footer>
-          <span>Veyrix 1.1 Prototype</span>
+          <span>Veyrix 1.2 Futures Simulation Lab</span>
           <p>Risk-managed paper simulation · No real assets are connected</p>
         </footer>
       </main>

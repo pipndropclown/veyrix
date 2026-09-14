@@ -1,6 +1,7 @@
 import { paperTradingConfig } from "./tradingConfig.ts";
+import { futuresPnl } from "./futuresEngine.ts";
 import type { ActivityItem } from "@/types";
-import type { PaperPortfolioMetrics, PaperPortfolioState, PaperTrade } from "@/types/trading";
+import type { FuturesTrade, PaperPortfolioMetrics, PaperPortfolioState, PaperTrade } from "@/types/trading";
 
 const MAX_EXECUTION_IDS = 200;
 const MAX_ACTIVITY_ITEMS = 50;
@@ -55,11 +56,12 @@ function isActivity(value: unknown): value is ActivityItem {
   return typeof item.id === "string" && typeof item.time === "string" && typeof item.title === "string" && typeof item.description === "string" && ["signal", "analysis", "trade", "system"].includes(item.type ?? "");
 }
 
-function realizedPnlForDay(trades: PaperTrade[], tradingDay: string): number {
-  return trades.reduce((total, trade) => {
+function realizedPnlForDay(trades: PaperTrade[], futuresTrades: FuturesTrade[], tradingDay: string): number {
+  const spot = trades.reduce((total, trade) => {
     if (trade.status !== "CLOSED" || !trade.exitTimestamp || localTradingDay(new Date(trade.exitTimestamp)) !== tradingDay) return total;
     return total + (trade.realizedPnl ?? 0);
   }, 0);
+  return spot + futuresTrades.reduce((total, trade) => trade.status === "CLOSED" && trade.exitTimestamp && localTradingDay(new Date(trade.exitTimestamp)) === tradingDay ? total + (trade.realizedPnl ?? 0) : total, 0);
 }
 
 export function dailyLossLimitUsd(): number {
@@ -67,7 +69,7 @@ export function dailyLossLimitUsd(): number {
 }
 
 export function createInitialPaperPortfolio(tradingDay = localTradingDay(new Date())): PaperPortfolioState {
-  return { version: 1, availableUsdc: paperTradingConfig.startingBalanceUsd, solBalance: 0, averageSolEntryPrice: null, realizedPnl: 0, completedTrades: 0, winningTrades: 0, losingTrades: 0, trades: [], processedEvaluationIds: [], activity: [], tradingDay, dailyRealizedPnl: 0, tradingPausedForDay: false };
+  return { version: 1, availableUsdc: paperTradingConfig.startingBalanceUsd, solBalance: 0, averageSolEntryPrice: null, realizedPnl: 0, completedTrades: 0, winningTrades: 0, losingTrades: 0, trades: [], futuresTrades: [], futuresProcessedCandleIds: [], processedEvaluationIds: [], activity: [], tradingDay, dailyRealizedPnl: 0, tradingPausedForDay: false };
 }
 
 export function restorePaperPortfolio(value: unknown, currentDay = localTradingDay(new Date())): PaperPortfolioState {
@@ -84,6 +86,11 @@ export function restorePaperPortfolio(value: unknown, currentDay = localTradingD
     || !Array.isArray(raw.activity) || !raw.activity.every(isActivity)) return createInitialPaperPortfolio(currentDay);
 
   const typedTrades = trades as PaperTrade[];
+  const futuresTrades = Array.isArray(raw.futuresTrades) && raw.futuresTrades.every((trade) =>
+    trade && typeof trade.id === "string" && ["LONG", "SHORT"].includes(trade.side) && [1, 2, 3, 5].includes(trade.leverage)
+    && finite(trade.marginUsdc) && trade.marginUsdc > 0 && finite(trade.entryPrice) && trade.entryPrice > 0
+    && finite(trade.quantitySol) && trade.quantitySol > 0 && ["OPEN", "CLOSED"].includes(trade.status))
+    && raw.futuresTrades.filter((trade) => trade.status === "OPEN").length <= 1 ? raw.futuresTrades : [];
   const openTrades = typedTrades.filter((trade) => trade.status === "OPEN");
   const closedTrades = typedTrades.filter((trade) => trade.status === "CLOSED");
   const wins = closedTrades.filter((trade) => (trade.realizedPnl ?? 0) > 0).length;
@@ -95,11 +102,13 @@ export function restorePaperPortfolio(value: unknown, currentDay = localTradingD
     || raw.completedTrades !== closedTrades.length || raw.winningTrades !== wins || raw.losingTrades !== losses) return createInitialPaperPortfolio(currentDay);
 
   const storedDay = typeof raw.tradingDay === "string" && DAY_PATTERN.test(raw.tradingDay) ? raw.tradingDay : currentDay;
-  const derivedDailyPnl = realizedPnlForDay(typedTrades, storedDay);
+  const derivedDailyPnl = realizedPnlForDay(typedTrades, futuresTrades, storedDay);
   const hasValidDailyState = finite(raw.dailyRealizedPnl) && Math.abs(raw.dailyRealizedPnl - derivedDailyPnl) < 1e-8 && typeof raw.tradingPausedForDay === "boolean";
   return {
     ...(raw as PaperPortfolioState),
     trades: typedTrades,
+    futuresTrades,
+    futuresProcessedCandleIds: Array.isArray(raw.futuresProcessedCandleIds) ? raw.futuresProcessedCandleIds.filter((id): id is string => typeof id === "string").slice(-200) : [],
     processedEvaluationIds: raw.processedEvaluationIds.slice(-MAX_EXECUTION_IDS),
     activity: raw.activity.slice(0, MAX_ACTIVITY_ITEMS),
     tradingDay: storedDay,
@@ -115,13 +124,17 @@ export function calculatePortfolioMetrics(state: PaperPortfolioState, marketPric
   const solPositionValue = state.solBalance * markPrice;
   const costBasis = state.solBalance * (state.averageSolEntryPrice ?? 0);
   const unrealizedPnl = state.solBalance > 0 ? solPositionValue - costBasis : 0;
-  const totalPortfolioValue = state.availableUsdc + solPositionValue;
+  const openFutures = (state.futuresTrades ?? []).filter((trade) => trade.status === "OPEN");
+  const futuresMarginInUse = openFutures.reduce((sum, trade) => sum + trade.marginUsdc, 0);
+  const futuresExposure = openFutures.reduce((sum, trade) => sum + trade.exposureUsdc, 0);
+  const futuresUnrealizedPnl = openFutures.reduce((sum, trade) => sum + Math.max(-trade.marginUsdc, futuresPnl(trade, usablePrice ?? trade.entryPrice)), 0);
+  const totalPortfolioValue = state.availableUsdc + solPositionValue + futuresMarginInUse + futuresUnrealizedPnl;
   const lossLimit = dailyLossLimitUsd();
   return {
     state: state.solBalance > 0 ? "LONG" : "FLAT", startingBalance: paperTradingConfig.startingBalanceUsd,
     availableUsdc: state.availableUsdc, solBalance: state.solBalance, averageSolEntryPrice: state.averageSolEntryPrice,
     currentPrice: usablePrice, solPositionValue, unrealizedPnl, unrealizedPnlPercent: costBasis > 0 ? (unrealizedPnl / costBasis) * 100 : 0,
-    realizedPnl: state.realizedPnl, totalPortfolioValue,
+    realizedPnl: state.realizedPnl, totalPortfolioValue, futuresMarginInUse, futuresExposure, futuresUnrealizedPnl,
     totalReturnPercent: ((totalPortfolioValue - paperTradingConfig.startingBalanceUsd) / paperTradingConfig.startingBalanceUsd) * 100,
     completedTrades: state.completedTrades, winningTrades: state.winningTrades, losingTrades: state.losingTrades,
     winRate: state.completedTrades > 0 ? (state.winningTrades / state.completedTrades) * 100 : 0,

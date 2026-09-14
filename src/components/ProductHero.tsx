@@ -3,10 +3,10 @@ export function ProductHero() {
   return (
     <section className="product-hero" aria-labelledby="product-title">
       <div>
-        <span>VEYRIX 1.1 PROTOTYPE</span>
+        <span>VEYRIX 1.2 · SIMULATED FUTURES</span>
         <h1 id="product-title">Autonomous Strategy Research Lab</h1>
         <p>
-          Live paper trading terminal, historical backtesting, and rigorous
+          Spot and futures paper trading, historical backtesting, and rigorous
           strategy research in one simulation-only workspace.
         </p>
         <small>
@@ -15,7 +15,7 @@ export function ProductHero() {
         </small>
       </div>
       <div className="hero-actions">
-        <strong>PAPER TRADING ONLY</strong>
+        <strong>NO REAL FUNDS OR BORROWING</strong>
         <Link href="/research">OPEN RESEARCH WORKSPACE</Link>
       </div>
     </section>

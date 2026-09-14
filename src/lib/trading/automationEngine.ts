@@ -187,5 +187,6 @@ export function chartTimeframeDoesNotChangeAutomation(
   settings: AutomationSettings,
   _chartTimeframe: LiveTimeframe,
 ): AutomationSettings {
+  void _chartTimeframe;
   return settings;
 }

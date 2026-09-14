@@ -38,22 +38,30 @@ export function PortfolioOverview({
       value: usd(metrics.availableUsdc),
       detail: "Virtual balance",
     },
+    { label: "Futures margin in use", value: usd(metrics.futuresMarginInUse), detail: "Reserved virtual collateral" },
+    { label: "Futures exposure", value: usd(metrics.futuresExposure), detail: "Simulated notional" },
     {
       label: "SOL position value",
       value: usd(metrics.solPositionValue),
       detail: `${metrics.solBalance.toFixed(6)} SOL`,
     },
     {
-      label: "Realized P&L",
+      label: "Realized P&L (all paper)",
       value: signedUsd(metrics.realizedPnl),
       detail: "Closed trades",
       trend: metrics.realizedPnl,
     },
     {
-      label: "Unrealized P&L",
+      label: "Spot unrealized P&L",
       value: signedUsd(metrics.unrealizedPnl),
       detail: `${percent(metrics.unrealizedPnlPercent)} open`,
       trend: metrics.unrealizedPnl,
+    },
+    {
+      label: "Futures unrealized P&L",
+      value: signedUsd(metrics.futuresUnrealizedPnl),
+      detail: "Open simulated futures",
+      trend: metrics.futuresUnrealizedPnl,
     },
     {
       label: "Total return",
@@ -62,12 +70,12 @@ export function PortfolioOverview({
       trend: metrics.totalReturnPercent,
     },
     {
-      label: "Completed trades",
+      label: "Completed spot trades",
       value: String(metrics.completedTrades),
       detail: `${metrics.winningTrades} wins · ${metrics.losingTrades} losses`,
     },
     {
-      label: "Win rate",
+      label: "Spot win rate",
       value: `${metrics.winRate.toFixed(1)}%`,
       detail: metrics.completedTrades
         ? `${metrics.winningTrades} of ${metrics.completedTrades}`

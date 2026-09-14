@@ -17,21 +17,20 @@ export function ReadOnlyWalletPanel() {
     disconnect,
   } = useWallet();
   const [error, setError] = useState<string | null>(null);
-  const [balance, setBalance] = useState<number | null>(null);
+  const [balance, setBalance] = useState<{ address: string; sol: number } | null>(null);
+  const address = publicKey?.toBase58() ?? null;
+  const displayedBalance = balance?.address === address ? balance.sol : null;
   const available = useMemo(
     () => wallets.filter((item) => supportedWalletName(item.adapter.name)),
     [wallets],
   );
   useEffect(() => {
-    if (!publicKey) {
-      setBalance(null);
-      return;
-    }
+    if (!publicKey || !address) return;
     let active = true;
     connection
       .getBalance(publicKey)
       .then((lamports) => {
-        if (active) setBalance(lamports / 1_000_000_000);
+        if (active) setBalance({ address, sol: lamports / 1_000_000_000 });
       })
       .catch(() => {
         if (active) {
@@ -42,7 +41,7 @@ export function ReadOnlyWalletPanel() {
     return () => {
       active = false;
     };
-  }, [connection, publicKey]);
+  }, [connection, publicKey, address]);
   const choose = useCallback(
     async (name: string) => {
       setError(null);
@@ -82,7 +81,7 @@ export function ReadOnlyWalletPanel() {
             <div>
               <dt>Public SOL balance</dt>
               <dd>
-                {balance === null ? "Unavailable" : `${balance.toFixed(4)} SOL`}
+                {displayedBalance === null ? "Unavailable" : `${displayedBalance.toFixed(4)} SOL`}
               </dd>
             </div>
             <div>

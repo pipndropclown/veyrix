@@ -15,6 +15,25 @@ export interface PaperTradingConfig {
 
 export type TradeExitReason = "STOP_LOSS" | "TAKE_PROFIT" | "STRATEGY_SIGNAL";
 export type PaperTradeSource = "MANUAL" | "AUTONOMOUS";
+export interface FuturesTrade {
+  id: string;
+  side: "LONG" | "SHORT";
+  leverage: 1 | 2 | 3 | 5;
+  marginUsdc: number;
+  exposureUsdc: number;
+  quantitySol: number;
+  entryPrice: number;
+  entryTimestamp: string;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  liquidationPrice: number;
+  source: PaperTradeSource;
+  status: "OPEN" | "CLOSED";
+  exitPrice: number | null;
+  exitTimestamp: string | null;
+  exitReason: "MANUAL" | "STOP_LOSS" | "TAKE_PROFIT" | "LIQUIDATION" | null;
+  realizedPnl: number | null;
+}
 
 export interface PaperTrade {
   id: string;
@@ -58,6 +77,8 @@ export interface PaperPortfolioState {
   tradingDay: string;
   dailyRealizedPnl: number;
   tradingPausedForDay: boolean;
+  futuresTrades?: FuturesTrade[];
+  futuresProcessedCandleIds?: string[];
 }
 
 export interface PaperPortfolioMetrics {
@@ -82,6 +103,9 @@ export interface PaperPortfolioMetrics {
   dailyLossLimit: number;
   dailyLossRemaining: number;
   tradingPausedForDay: boolean;
+  futuresMarginInUse: number;
+  futuresExposure: number;
+  futuresUnrealizedPnl: number;
 }
 
 export interface PaperEvaluation {
