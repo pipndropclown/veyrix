@@ -4,8 +4,9 @@ export interface PriceObservation {
 }
 
 export interface MarketData {
-  symbol: "SOL/USDC";
-  sourcePair: "SOL/USD";
+  marketId: import("@/lib/market/marketRegistry").MarketId;
+  symbol: string;
+  sourcePair: string;
   price: number;
   change24h: number;
   high24h: number;

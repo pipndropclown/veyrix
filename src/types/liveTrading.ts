@@ -15,7 +15,8 @@ export interface LiveTimeframeDefinition {
 }
 
 export interface LiveCandleSet {
-  pair: "SOL-USD";
+  marketId: import("@/lib/market/marketRegistry").MarketId;
+  pair: string;
   source: "Coinbase Exchange";
   timeframe: LiveTimeframe;
   intervalSeconds: number;
@@ -33,6 +34,12 @@ export interface AutomationSettings {
   timeframe: LiveTimeframe;
   lastProcessedCandleId: string | null;
   processedCandleIds: string[];
+  marketId?: import("@/lib/market/marketRegistry").MarketId;
+  tradingMode?: "SPOT"|"FUTURES";
+  leverage?: 1|2|3|5;
+  allocationPercent?: number;
+  stopLossPercent?: number;
+  takeProfitPercent?: number;
 }
 
 export interface AutomationStatus {

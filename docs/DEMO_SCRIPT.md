@@ -31,3 +31,11 @@ Open a saved research run and its report/demo view. Highlight the executive summ
 ### Optional account and themes
 
 Mention that reviewers can use Guest Mode immediately, then optionally create an account for cloud sync and cross-device restoration. Show the theme selector and emphasize that the connected wallet never funds the $10,000 virtual account.
+
+## V1.3 demo
+
+1. Select BTC / USDC and explain that BTC/USD is the public reference feed.
+2. Open BTC Spot Paper, then ETH Futures Paper, and show both in Open Positions.
+3. Switch charts without modifying either position; show market-filtered markers and history.
+4. Configure one autonomous market, strategy, timeframe, mode, leverage, allocation, stop, and target.
+5. Open Research, select BTC, ETH, or SOL, and run a market-specific backtest.

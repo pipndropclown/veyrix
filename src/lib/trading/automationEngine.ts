@@ -25,6 +25,7 @@ export const DEFAULT_AUTOMATION: AutomationSettings = {
   timeframe: "15m",
   lastProcessedCandleId: null,
   processedCandleIds: [],
+  marketId:"SOL",tradingMode:"SPOT",leverage:1,allocationPercent:10,stopLossPercent:3,takeProfitPercent:6,
 };
 
 export function restoreAutomationSettings(value: unknown): AutomationSettings {
@@ -54,6 +55,12 @@ export function restoreAutomationSettings(value: unknown): AutomationSettings {
         ? raw.lastProcessedCandleId
         : null,
     processedCandleIds: ids,
+    marketId: ["BTC","ETH","SOL"].includes(raw.marketId??"") ? raw.marketId : "SOL",
+    tradingMode: raw.tradingMode==="FUTURES"?"FUTURES":"SPOT",
+    leverage: [1,2,3,5].includes(raw.leverage??0)?raw.leverage:1,
+    allocationPercent: typeof raw.allocationPercent==="number"&&raw.allocationPercent>0&&raw.allocationPercent<=100?raw.allocationPercent:10,
+    stopLossPercent: typeof raw.stopLossPercent==="number"&&Number.isFinite(raw.stopLossPercent)&&raw.stopLossPercent>=0&&raw.stopLossPercent<100?raw.stopLossPercent:3,
+    takeProfitPercent: typeof raw.takeProfitPercent==="number"&&Number.isFinite(raw.takeProfitPercent)&&raw.takeProfitPercent>=0&&raw.takeProfitPercent<100?raw.takeProfitPercent:6,
   } as AutomationSettings;
 }
 
@@ -120,6 +127,8 @@ export function evaluateAutomation(input: {
     input.settings.strategyId,
     input.settings.timeframe,
     latest.timestamp,
+    input.settings.marketId,
+    input.settings.tradingMode,
   );
   if (input.settings.processedCandleIds.includes(id))
     return {

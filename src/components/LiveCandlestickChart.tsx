@@ -12,13 +12,14 @@ import {
 } from "lightweight-charts";
 import type { HistoricalCandle } from "@/types/backtesting";
 import type { ChartMode } from "@/types/liveTrading";
-import type { PaperTrade } from "@/types/trading";
+import type { PaperTradeSource } from "@/types/trading";
 import type { PositionRiskLevels } from "@/lib/trading/riskEngine";
 
 interface Props {
+  marketLabel?: string;
   candles: HistoricalCandle[];
   mode: ChartMode;
-  trades: PaperTrade[];
+  trades: {entryTimestamp:string;exitTimestamp:string|null;entryPrice:number;exitPrice:number|null;realizedPnl:number|null;source?:PaperTradeSource;side?:"LONG"|"SHORT"|"BUY"}[];
   risk: PositionRiskLevels | null;
   currentPrice: number | null;
 }
@@ -30,6 +31,7 @@ export function LiveCandlestickChart({
   trades,
   risk,
   currentPrice,
+  marketLabel="SOL",
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -109,10 +111,10 @@ export function LiveCandlestickChart({
       .flatMap((trade) => [
         {
           time: time(trade.entryTimestamp),
-          position: "belowBar" as const,
-          color: "#61f2c2",
-          shape: "arrowUp" as const,
-          text: `BUY ${trade.source ?? "AUTONOMOUS"} $${trade.entryPrice.toFixed(2)}`,
+          position: trade.side==="SHORT"?"aboveBar" as const:"belowBar" as const,
+          color: trade.side==="SHORT"?"#ff6474":"#61f2c2",
+          shape: trade.side==="SHORT"?"arrowDown" as const:"arrowUp" as const,
+          text: `${trade.side??"BUY"} ${trade.source ?? "AUTONOMOUS"} $${trade.entryPrice.toFixed(2)}`,
         },
         ...(trade.exitTimestamp
           ? [
@@ -172,7 +174,7 @@ export function LiveCandlestickChart({
       ref={host}
       className="live-chart"
       role="img"
-      aria-label={`${mode === "CANDLESTICK" ? "Candlestick" : "Line"} chart with SOL price, volume, trade markers, and paper-position levels`}
+      aria-label={`${mode === "CANDLESTICK" ? "Candlestick" : "Line"} chart with ${marketLabel} price, volume, trade markers, and paper-position levels`}
     />
   );
 }

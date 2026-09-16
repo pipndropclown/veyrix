@@ -11,6 +11,7 @@ export interface ResearchVersions {
   cacheSchemaVersion: string;
 }
 export interface ResearchConfiguration {
+  marketId?: import("@/lib/market/marketRegistry").MarketId;
   strategies: readonly StrategyId[];
   timeframe: Extract<BacktestTimeframe, "90D" | "180D" | "365D">;
   anchor: string;
@@ -33,7 +34,7 @@ export interface ResearchConfiguration {
   };
   historical: {
     source: "Coinbase Exchange";
-    pair: "SOL-USD";
+    pair: string;
     granularitySeconds: 21600;
   };
 }
@@ -130,6 +131,7 @@ export interface ResearchSizeMetadata {
   fullBytes?: number;
 }
 export interface ResearchSummary {
+  marketId?: import("@/lib/market/marketRegistry").MarketId;
   schemaVersion: "veyrix-summary-v1";
   researchRunId: string;
   createdAt: string;
@@ -192,6 +194,7 @@ export interface ResearchComparison {
   rows: Array<
     Pick<
       ResearchSummary,
+      | "marketId"
       | "researchRunId"
       | "timeframe"
       | "anchor"

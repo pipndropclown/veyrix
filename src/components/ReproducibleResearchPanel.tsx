@@ -10,12 +10,14 @@ import type {
   ResearchStoreStatus,
   ResearchSummary,
 } from "@/types/research";
+import { MARKET_IDS,MARKET_REGISTRY,type MarketId } from "@/lib/market/marketRegistry";
 const pct = (value: number | null) =>
     value === null ? "N/A" : `${value.toFixed(2)}%`,
   num = (value: number | null) => (value === null ? "N/A" : value.toFixed(1)),
   kb = (value: number) => `${(value / 1024).toFixed(1)} kB`;
 export function ReproducibleResearchPanel() {
   const [timeframe, setTimeframe] = useState<"180D" | "365D">("180D"),
+    [marketId,setMarketId]=useState<MarketId>("SOL"),
     [anchor, setAnchor] = useState(""),
     [note, setNote] = useState(""),
     [summary, setSummary] = useState<ResearchSummary | null>(null),
@@ -61,7 +63,7 @@ export function ReproducibleResearchPanel() {
       const response = await fetch("/api/research/run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ timeframe, anchor: anchor || undefined }),
+          body: JSON.stringify({ timeframe, anchor: anchor || undefined,marketId }),
         }),
         payload = await response.json();
       if (!response.ok || !payload.success) throw new Error();
@@ -208,6 +210,7 @@ export function ReproducibleResearchPanel() {
         title="Research library"
       />
       <div className="robust-controls">
+        <label>Research market<select value={marketId} onChange={event=>setMarketId(event.target.value as MarketId)}>{MARKET_IDS.map(id=><option key={id} value={id}>{MARKET_REGISTRY[id].displaySymbol}</option>)}</select></label>
         <div className="period-selector">
           {(["180D", "365D"] as const).map((value) => (
             <button
@@ -233,8 +236,8 @@ export function ReproducibleResearchPanel() {
         <button disabled={busy} onClick={runResearch}>
           {busy ? "RUNNING HISTORICAL SIMULATION…" : "RUN RESEARCH"}
         </button>
-        <button disabled={busy} onClick={runMulti}>
-          {busy ? "VALIDATING STRATEGY ROBUSTNESS…" : "RUN MULTI-ANCHOR"}
+        <button disabled={busy || marketId!=="SOL"} onClick={runMulti}>
+          {busy ? "VALIDATING STRATEGY ROBUSTNESS…" : "RUN SOL MULTI-ANCHOR"}
         </button>
       </div>
       {busy && (
@@ -268,7 +271,7 @@ export function ReproducibleResearchPanel() {
         <section className="panel">
           <SectionHeader
             eyebrow={`${summary.accessSource} · ${summary.persistenceStatus}`}
-            title="Research summary"
+            title={`Research summary ? ${summary.marketId??"SOL"} / USDC`}
           />
           <div className="research-performance">
             <div>
@@ -369,7 +372,7 @@ export function ReproducibleResearchPanel() {
                 <tr>
                   <th></th>
                   <th>Date</th>
-                  <th>History</th>
+                  <th>Market</th><th>History</th>
                   <th>Top strategy</th>
                   <th>Score</th>
                   <th>Reliability</th>
@@ -389,7 +392,7 @@ export function ReproducibleResearchPanel() {
                       />
                     </td>
                     <td>{item.createdAt.slice(0, 10)}</td>
-                    <td>{item.timeframe}</td>
+                    <td>{item.marketId??"SOL"}</td><td>{item.timeframe}</td>
                     <td>{item.topStrategy?.replace("_", " ") ?? "N/A"}</td>
                     <td>
                       {num(item.temporalResearchScore ?? item.researchScore)}
@@ -435,7 +438,7 @@ export function ReproducibleResearchPanel() {
               <thead>
                 <tr>
                   <th>Run</th>
-                  <th>History</th>
+                  <th>Market</th><th>History</th>
                   <th>Anchor</th>
                   <th>Top strategy</th>
                   <th>Research</th>
@@ -448,7 +451,7 @@ export function ReproducibleResearchPanel() {
                 {comparison.rows.map((row) => (
                   <tr key={row.researchRunId}>
                     <td>{row.researchRunId.slice(0, 12)}</td>
-                    <td>{row.timeframe}</td>
+                    <td>{row.marketId??"SOL"}</td><td>{row.timeframe}</td>
                     <td>{row.anchor.slice(0, 10)}</td>
                     <td>{row.topStrategy?.replace("_", " ") ?? "N/A"}</td>
                     <td>{num(row.temporalResearchScore)}</td>

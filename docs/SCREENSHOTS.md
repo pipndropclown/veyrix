@@ -13,3 +13,11 @@ Capture at desktop width unless a mobile view better demonstrates responsiveness
 
 Before capture: wait for loading to finish, avoid error states unless documenting them, confirm no personal/local paths appear, keep browser chrome minimal, and verify tables are not clipped.
 8. Account and theme controls — show optional cloud-sync messaging, the Dark/Light/System selector, and the explicit separation between connected wallet identity and virtual paper funds.
+
+## V1.3 required captures
+
+- Trading terminal with BTC / ETH / SOL selector and USD-reference / virtual-USDC disclosure.
+- Open Positions summary showing positions in different markets and modes.
+- Multi-market history filters and asset breakdown.
+- Autonomous configuration with market and mode.
+- Research market selector with a market-specific benchmark result.

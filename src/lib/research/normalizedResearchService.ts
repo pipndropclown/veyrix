@@ -1,4 +1,5 @@
-import { getHistoricalSolData } from "../backtesting/historicalMarketService.ts";
+import { getHistoricalMarketData } from "../backtesting/historicalMarketService.ts";
+import { MARKET_REGISTRY,type MarketId } from "../market/marketRegistry.ts";
 import { normalizeHistoricalCandles } from "../backtesting/marketCandles.ts";
 import { backtestExecutionConfig } from "../backtesting/backtestConfig.ts";
 import { parameterSchemas } from "../optimization/parameterSchemas.ts";
@@ -67,9 +68,10 @@ let unavailable = false;
 function configuration(
   timeframe: "180D" | "365D",
   anchor: string,
+  marketId:MarketId,
 ): ResearchConfiguration {
   return {
-    strategies: ["momentum", "moving_average", "mean_reversion"],
+    marketId, strategies: ["momentum", "moving_average", "mean_reversion"],
     timeframe,
     anchor,
     validationMethod: "ALL",
@@ -86,7 +88,7 @@ function configuration(
     validation: validationWindowConfig,
     historical: {
       source: "Coinbase Exchange",
-      pair: "SOL-USD",
+      pair: MARKET_REGISTRY[marketId].providerProductId,
       granularitySeconds: 21600,
     },
   };
@@ -144,6 +146,7 @@ export async function runNormalizedResearch(
   timeframe: "180D" | "365D",
   anchorInput?: string,
   now = Date.now(),
+  marketId:MarketId="SOL",
 ) {
   const anchor = anchorInput
     ? normalizeResearchAnchor(anchorInput, now)
@@ -151,7 +154,7 @@ export async function runNormalizedResearch(
   if (!anchor) throw new Error("Invalid anchor");
   const started = performance.now(),
     historyStarted = performance.now(),
-    data = await getHistoricalSolData(timeframe, now, anchor),
+    data = await getHistoricalMarketData(timeframe,marketId, now, anchor),
     historicalRetrievalMs = performance.now() - historyStarted,
     normalStarted = performance.now(),
     candles = Object.freeze(
@@ -161,7 +164,7 @@ export async function runNormalizedResearch(
     ),
     normalizationMs = performance.now() - normalStarted,
     datasetFingerprint = fingerprintDataset(candles),
-    config = configuration(timeframe, anchor),
+    config = configuration(timeframe, anchor,marketId),
     id = createResearchRunId(config, datasetFingerprint),
     isActive = (record: NormalizedResearchRecord) =>
       record.pinned || Date.parse(record.expiresAt) > now;
@@ -230,7 +233,7 @@ export async function runNormalizedResearch(
       createdAt = new Date().toISOString(),
       researchManifest = createManifest(config, data, id, datasetFingerprint),
       legacyFingerprint = stableFingerprint(arena),
-      initial = createResearchSummary({
+      initial = {marketId, ...createResearchSummary({
         runId: id,
         createdAt,
         timeframe,
@@ -239,7 +242,7 @@ export async function runNormalizedResearch(
         resultFingerprint: legacyFingerprint,
         durationMs: performance.now() - started,
         arena,
-      }),
+      })},
       normalized = normalizeResearchArena(arena, id),
       rootFingerprint = calculateNormalizedRootFingerprint(
         stableFingerprint(researchManifest),

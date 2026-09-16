@@ -1,0 +1,5 @@
+import type { MarketId } from "@/lib/market/marketRegistry";
+import type { PaperPortfolioState,PaperTradeSource } from "@/types/trading";
+export type HistoryMarket="ALL"|MarketId;export type HistoryMode="ALL"|"SPOT"|"FUTURES";export type HistorySource="ALL"|PaperTradeSource;
+export function unifiedTradeHistory(portfolio:PaperPortfolioState){return[...(portfolio.multiMarketSpotTrades??[]).map(t=>({...t,leverage:null,marginUsdc:null,exposureUsdc:t.amountUsdc})),...(portfolio.futuresTrades??[]).map(t=>({...t,marketId:t.marketId??"SOL",mode:"FUTURES" as const,amountUsdc:t.marginUsdc,quantity:t.quantitySol}))]}
+export function filterTradeHistory(portfolio:PaperPortfolioState,filters:{market:HistoryMarket;mode:HistoryMode;source:HistorySource}){return unifiedTradeHistory(portfolio).filter(t=>(filters.market==="ALL"||t.marketId===filters.market)&&(filters.mode==="ALL"||t.mode===filters.mode)&&(filters.source==="ALL"||t.source===filters.source)).sort((a,b)=>Date.parse(b.entryTimestamp)-Date.parse(a.entryTimestamp))}

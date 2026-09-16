@@ -4,15 +4,18 @@ import { ActivityLog } from "./ActivityLog";
 import { AutomationControlPanel } from "./AutomationControlPanel";
 import { LiveCandlestickChart } from "./LiveCandlestickChart";
 import { FuturesPaperPanel } from "./FuturesPaperPanel";
-import { closeFutures, openFutures } from "@/lib/trading/futuresEngine";
-import { closedCandles } from "@/lib/market/liveCandles";
-import { getStrategy } from "@/lib/strategy/strategyRegistry";
-import { ManualPaperTradePanel } from "./ManualPaperTradePanel";
+import { closeFuturesMarket, openFutures } from "@/lib/trading/futuresEngine";
+import { MultiMarketSpotPanel } from "./MultiMarketSpotPanel";
+import { OpenPositionsSummary } from "./OpenPositionsSummary";
+import { closeMarketSpot,openMarketSpot } from "@/lib/trading/multiMarketSpotEngine";
+import { MARKET_IDS,MARKET_REGISTRY,type MarketId } from "@/lib/market/marketRegistry";
+import { evaluateMultiMarketAutomation } from "@/lib/trading/multiMarketAutomation";
 import { MarketPanel } from "./MarketPanel";
 import { PerformanceAnalyticsPanel } from "./PerformanceAnalyticsPanel";
-import { PortfolioOverview } from "./PortfolioOverview";
+import { MultiMarketPortfolioOverview } from "./MultiMarketPortfolioOverview";
+import { AssetBreakdown } from "./AssetBreakdown";
+import { MultiMarketHistory } from "./MultiMarketHistory";
 import { ReadOnlyWalletPanel } from "./ReadOnlyWalletPanel";
-import { RecentTrades } from "./RecentTrades";
 import { RiskManagementPanel } from "./RiskManagementPanel";
 import { SectionHeader } from "./SectionHeader";
 import { calculatePerformanceAnalytics } from "@/lib/analytics/performanceAnalytics";
@@ -24,20 +27,15 @@ import {
 import {
   AUTOMATION_STORAGE_KEY,
   DEFAULT_AUTOMATION,
-  evaluateAutomation,
   restoreAutomationSettings,
 } from "@/lib/trading/automationEngine";
-import {
-  manualBuy,
-  manualSellAll,
-  monitorPaperRisk,
-} from "@/lib/trading/manualPaperTrading";
+import { calculateMultiMarketAccount } from "@/lib/trading/accountMetrics";
+import { unifiedTradeHistory } from "@/lib/trading/tradeHistory";
 import {
   calculatePortfolioMetrics,
   createInitialPaperPortfolio,
   restorePaperPortfolio,
 } from "@/lib/trading/paperPortfolio";
-import { calculatePositionRisk } from "@/lib/trading/riskEngine";
 import { PAPER_PORTFOLIO_STORAGE_KEY } from "@/lib/trading/tradingConfig";
 import type { MarketApiResponse, MarketData } from "@/types/market";
 import type {
@@ -59,8 +57,9 @@ const emptyStatus = (timeframe: LiveTimeframe): AutomationStatus => ({
 });
 export function LiveMarketSection() {
   const [tradingMode, setTradingMode] = useState<"SPOT" | "FUTURES">("SPOT");
-  const [futuresAutonomousEnabled, setFuturesAutonomousEnabled] = useState(false);
+  const [selectedMarket,setSelectedMarket]=useState<MarketId>("SOL");
   const [marketData, setMarketData] = useState<MarketData | null>(null),
+    [marketPrices,setMarketPrices]=useState<Partial<Record<MarketId,number>>>({}),
     [marketError, setMarketError] = useState<string | null>(null),
     [isLoading, setIsLoading] = useState(true),
     [isRefreshing, setIsRefreshing] = useState(false);
@@ -79,8 +78,8 @@ export function LiveMarketSection() {
     [candleError, setCandleError] = useState<string | null>(null),
     [candleLoading, setCandleLoading] = useState(true);
   const automationBusy = useRef(false);
-  const futuresAutoLastSeen = useRef<string | null>(null);
-  const futuresStrategyId = automation.strategyId;
+  const view = useRef({market:selectedMarket,timeframe:chartTimeframe});
+  useEffect(()=>{view.current={market:selectedMarket,timeframe:chartTimeframe}},[selectedMarket,chartTimeframe]);
   useEffect(() => {
     const id = window.setTimeout(() => {
       try {
@@ -118,40 +117,40 @@ export function LiveMarketSection() {
   const fetchMarket = useCallback(async (background = false) => {
     if (background) setIsRefreshing(true);
     try {
-      const response = await fetch("/api/market", { cache: "no-store" }),
+      const response = await fetch(`/api/market?symbol=${selectedMarket}`, { cache: "no-store" }),
         payload = (await response.json()) as MarketApiResponse;
       if (!response.ok || !payload.success) throw new Error();
+      if(view.current.market!==selectedMarket)return;
       setPortfolio((current) => {
-        const spot = current.solBalance > 0
-          ? monitorPaperRisk(current, payload.data.price, payload.data.lastUpdated).portfolio
-          : current;
-        return closeFutures(spot, payload.data.price, payload.data.lastUpdated);
+        const spot = current;
+        return closeMarketSpot(closeFuturesMarket(spot,selectedMarket,payload.data.price,payload.data.lastUpdated),selectedMarket,payload.data.price,payload.data.lastUpdated,false);
       });
+      setMarketPrices(current=>({...current,[selectedMarket]:payload.data.price}));
       setMarketData(payload.data);
       setMarketError(null);
     } catch {
-      setMarketError("Market data temporarily unavailable");
+      if(view.current.market===selectedMarket){setMarketData(null);setMarketError("Market data temporarily unavailable");}
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [selectedMarket]);
   const fetchCandles = useCallback(
-    async (timeframe: LiveTimeframe) => {
+    async (timeframe: LiveTimeframe, marketId:MarketId=selectedMarket, updateChart=true) => {
       try {
-        const response = await fetch(`/api/candles?timeframe=${timeframe}`, {
+        const response = await fetch(`/api/candles?symbol=${marketId}&timeframe=${timeframe}`, {
             cache: "no-store",
           }),
           payload = (await response.json()) as LiveCandleApiResponse;
         if (!response.ok || !payload.success) throw new Error();
-        if (timeframe === chartTimeframe) {
+        if (updateChart && timeframe === view.current.timeframe && marketId===view.current.market) {
           setCandles(payload.data.candles);
           setCandleError(null);
           setCandleLoading(false);
         }
         return payload.data.candles;
       } catch {
-        if (timeframe === chartTimeframe) {
+        if (updateChart && timeframe === view.current.timeframe && marketId===view.current.market) {
           setCandleError(
             "Chart candles are temporarily unavailable. Veyrix will retry.",
           );
@@ -160,7 +159,7 @@ export function LiveMarketSection() {
         return null;
       }
     },
-    [chartTimeframe],
+    [selectedMarket],
   );
   useEffect(() => {
     if (!hydrated) return;
@@ -168,6 +167,7 @@ export function LiveMarketSection() {
     const id = setInterval(() => void fetchMarket(true), MARKET_REFRESH_MS);
     return () => { window.clearTimeout(initial); clearInterval(id); };
   }, [fetchMarket, hydrated]);
+  useEffect(()=>{if(!hydrated)return;const refresh=async()=>{const needed=new Set<MarketId>([...Object.keys(portfolio.spotPositions??{}) as MarketId[],...(portfolio.futuresTrades??[]).filter(t=>t.status==="OPEN").map(t=>t.marketId??"SOL"),automation.enabled?(automation.marketId??"SOL"):selectedMarket]);needed.delete(selectedMarket);await Promise.all([...needed].map(async marketId=>{try{const response=await fetch(`/api/market?symbol=${marketId}`,{cache:"no-store"}),payload=await response.json() as MarketApiResponse;if(response.ok&&payload.success){setMarketPrices(current=>({...current,[marketId]:payload.data.price}));setPortfolio(current=>closeMarketSpot(closeFuturesMarket(current,marketId,payload.data.price,payload.data.lastUpdated),marketId,payload.data.price,payload.data.lastUpdated,false))}}catch{}}))};const initial=window.setTimeout(()=>void refresh(),0),id=window.setInterval(()=>void refresh(),MARKET_REFRESH_MS);return()=>{clearTimeout(initial);clearInterval(id)}},[hydrated,portfolio.spotPositions,portfolio.futuresTrades,automation.enabled,automation.marketId,selectedMarket]);
   useEffect(() => {
     const initial = window.setTimeout(() => void fetchCandles(chartTimeframe), 0);
     const id = setInterval(
@@ -177,19 +177,18 @@ export function LiveMarketSection() {
     return () => { window.clearTimeout(initial); clearInterval(id); };
   }, [chartTimeframe, fetchCandles]);
   useEffect(() => {
-    if (!hydrated || tradingMode !== "SPOT") return;
+    if (!hydrated) return;
     const settings = automation;
+    let cancelled=false;
     const evaluate = async () => {
       if (automationBusy.current) return;
       automationBusy.current = true;
       try {
         const data =
-          settings.timeframe === chartTimeframe
-            ? candles
-            : await fetchCandles(settings.timeframe);
-        if (!data?.length) return;
+          await fetchCandles(settings.timeframe,settings.marketId??"SOL",false);
+        if (cancelled || !data?.length) return;
         setPortfolio((current) => {
-          const result = evaluateAutomation({
+          const result = evaluateMultiMarketAutomation({
             portfolio: current,
             settings,
             candles: data,
@@ -208,45 +207,25 @@ export function LiveMarketSection() {
       () => void evaluate(),
       Math.min(30000, LIVE_TIMEFRAMES[settings.timeframe].refreshMs),
     );
-    return () => clearInterval(id);
+    return () => {cancelled=true;clearInterval(id)};
   }, [
     automation,
-    candles,
     chartTimeframe,
     fetchCandles,
     hydrated,
-    tradingMode,
+    selectedMarket,
   ]);
-  useEffect(() => {
-    if (!hydrated || tradingMode !== "FUTURES" || !futuresAutonomousEnabled || !candles.length) return;
-    const latest = closedCandles(candles, chartTimeframe, Date.now()).at(-1);
-    if (!latest) return;
-    const id = `${futuresStrategyId}:${chartTimeframe}:${latest.timestamp}`;
-    if (futuresAutoLastSeen.current === null) { futuresAutoLastSeen.current = id; return; }
-    if (futuresAutoLastSeen.current === id) return;
-    futuresAutoLastSeen.current = id;
-    setPortfolio((current) => {
-      if ((current.futuresProcessedCandleIds ?? []).includes(id)) return current;
-      const ids = [...(current.futuresProcessedCandleIds ?? []), id].slice(-200);
-      const observations = closedCandles(candles, chartTimeframe, Date.now()).map((candle) => ({ timestamp: candle.timestamp, price: candle.close }));
-      const decision = getStrategy(futuresStrategyId).evaluate(observations);
-      const base = { ...current, futuresProcessedCandleIds: ids };
-      if (decision.signal === "HOLD" || (current.futuresTrades ?? []).some((trade) => trade.status === "OPEN")) return base;
-      return openFutures(base, { side: decision.signal === "BUY" ? "LONG" : "SHORT", leverage: 1,
-        marginUsdc: Math.min(base.availableUsdc, Math.round(base.availableUsdc * 0.1 * 100) / 100),
-        price: latest.close, stopLoss: null, takeProfit: null, source: "AUTONOMOUS", timestamp: latest.timestamp }).portfolio;
-    });
-  }, [hydrated, tradingMode, futuresAutonomousEnabled, candles, chartTimeframe, futuresStrategyId]);
-  const marketPrice = marketData?.price ?? null;
-  const metrics = calculatePortfolioMetrics(portfolio, marketPrice);
-  const risk = portfolio.averageSolEntryPrice === null
-    ? null
-    : calculatePositionRisk(portfolio.averageSolEntryPrice);
+  const activeMarketData = marketData?.marketId===selectedMarket ? marketData : null;
+  const marketPrice = activeMarketData?.price ?? null;
+  const account = calculateMultiMarketAccount(portfolio,marketPrices);
+  const metrics = calculatePortfolioMetrics(portfolio, marketPrices.SOL??null);
+  const activeSpotTrade=(portfolio.multiMarketSpotTrades??[]).find(t=>t.marketId===selectedMarket&&t.status==="OPEN");
+  const risk=activeSpotTrade&&activeSpotTrade.stopLoss!==null&&activeSpotTrade.takeProfit!==null?{entryPrice:activeSpotTrade.entryPrice,stopLossPrice:activeSpotTrade.stopLoss,takeProfitPrice:activeSpotTrade.takeProfit}:null;
   const analytics = calculatePerformanceAnalytics({
     startingBalance: metrics.startingBalance,
-    currentPortfolioValue: metrics.totalPortfolioValue,
-    unrealizedPnl: metrics.unrealizedPnl,
-    trades: portfolio.trades,
+    currentPortfolioValue: account.totalVirtualEquity,
+    unrealizedPnl: account.totalUnrealizedPnl,
+    trades: unifiedTradeHistory(portfolio).map(t=>({...t,positionSizeUsdc:t.amountUsdc})),
   });
   const changeAutomation = (settings: AutomationSettings) => {
       setAutomation(settings);
@@ -273,10 +252,12 @@ export function LiveMarketSection() {
       <section className="terminal-section">
         <SectionHeader
           eyebrow="Live paper trading terminal"
-          title="SOL / USDC"
+          title={MARKET_REGISTRY[selectedMarket].displaySymbol}
           action={<span className="paper-only-chip">PAPER TRADING ONLY</span>}
         />
         <p className="guest-mode-note">Guest mode — your paper trading data is saved on this device. <a href="/auth/sign-up">Create an account to sync</a>.</p>
+        <div className="period-selector" role="group" aria-label="Market selector">{MARKET_IDS.map(id=><button type="button" key={id} className={selectedMarket===id?"selected":""} onClick={()=>{setCandles([]);setCandleLoading(true);setSelectedMarket(id)}}>{MARKET_REGISTRY[id].displaySymbol}</button>)}</div>
+        <small>Coinbase reference feed: {MARKET_REGISTRY[selectedMarket].providerDisplayPair} · paper settlement: virtual USDC</small>
         <div className="period-selector trading-mode-selector" role="group" aria-label="Trading mode">
           <button type="button" className={tradingMode === "SPOT" ? "selected" : ""} aria-pressed={tradingMode === "SPOT"} onClick={() => setTradingMode("SPOT")}>SPOT PAPER</button>
           <button type="button" className={tradingMode === "FUTURES" ? "selected" : ""} aria-pressed={tradingMode === "FUTURES"} onClick={() => setTradingMode("FUTURES")}>FUTURES PAPER</button>
@@ -288,7 +269,7 @@ export function LiveMarketSection() {
             ["CHART", chartTimeframe],
             ["AUTOMATION", automation.enabled ? "RUNNING" : "STOPPED"],
             ["STRATEGY", automation.strategyId.replaceAll("_", " ")],
-            ["PAPER POSITION", metrics.state === "LONG" ? "LONG SOL" : "FLAT"],
+            ["PAPER POSITION", portfolio.spotPositions?.[selectedMarket] ? `LONG ${selectedMarket}` : "FLAT"],
             ["LAST ACTION", lastAction],
             [
               "NEXT EVALUATION",
@@ -350,55 +331,39 @@ export function LiveMarketSection() {
           </div>
         ) : (
           <LiveCandlestickChart
+            marketLabel={selectedMarket}
             candles={candles}
             mode={chartMode}
-            trades={portfolio.trades}
-            risk={risk}
-            currentPrice={marketData?.price ?? candles.at(-1)?.close ?? null}
+            trades={[...(portfolio.multiMarketSpotTrades??[]).filter(trade=>trade.marketId===selectedMarket),...(portfolio.futuresTrades??[]).filter(trade=>(trade.marketId??"SOL")===selectedMarket)]}
+            risk={tradingMode==="SPOT"?risk:null}
+            currentPrice={marketPrice ?? candles.at(-1)?.close ?? null}
           />
         )}
         <small className="chart-source">
-          Coinbase Exchange public OHLC · latest candle may still be forming ·
+          Coinbase Exchange {MARKET_REGISTRY[selectedMarket].providerDisplayPair} public OHLC · latest candle may still be forming ·
           automation evaluates closed candles only
         </small>
       </section>
-      <PortfolioOverview metrics={metrics} riskLevels={risk} onReset={reset} />
-      {tradingMode === "SPOT" ? <><RiskManagementPanel metrics={metrics} levels={risk} />
+      <OpenPositionsSummary portfolio={portfolio} onSelect={(marketId,mode)=>{setCandles([]);setCandleLoading(true);setSelectedMarket(marketId);setTradingMode(mode)}}/>
+      <MultiMarketPortfolioOverview portfolio={portfolio} prices={marketPrices} onReset={reset} />
+      <AssetBreakdown portfolio={portfolio} prices={marketPrices} />
+      {tradingMode==="SPOT"&&<RiskManagementPanel metrics={metrics} levels={risk} />}
       <div className="terminal-control-grid">
         <AutomationControlPanel
           settings={automation}
           status={automationStatus}
-          position={metrics.state}
+          position={portfolio.spotPositions?.[automation.marketId??"SOL"]?"LONG":"FLAT"}
           onChange={changeAutomation}
         />
-        <ManualPaperTradePanel
-          portfolio={portfolio}
-          price={marketData?.price ?? null}
-          automationEnabled={automation.enabled}
-          onBuy={(amount) => {
-            const result = manualBuy(
-              portfolio,
-              amount,
-              marketData?.price ?? NaN,
-            );
-            if (!result.error) setPortfolio(result.portfolio);
-            return result.error;
-          }}
-          onSell={() => {
-            const result = manualSellAll(portfolio, marketData?.price ?? NaN);
-            if (!result.error) setPortfolio(result.portfolio);
-            return result.error;
-          }}
-        />
+        {tradingMode==="SPOT"?<MultiMarketSpotPanel key={selectedMarket} marketId={selectedMarket} portfolio={portfolio} price={marketPrice} onBuy={(input)=>{const result=openMarketSpot(portfolio,{marketId:selectedMarket,...input,price:marketPrice??NaN});if(!result.error)setPortfolio(result.portfolio);return result.error}} onSell={()=>setPortfolio(current=>closeMarketSpot(current,selectedMarket,marketPrice??NaN))}/>:<FuturesPaperPanel key={selectedMarket} prices={marketPrices} marketId={selectedMarket} portfolio={portfolio} price={marketPrice}
+        autonomousEnabled={automation.enabled&&(automation.marketId??"SOL")===selectedMarket&&(automation.tradingMode??"SPOT")==="FUTURES"} onAutonomousChange={(enabled) => setAutomation(current=>({...current,enabled,marketId:selectedMarket,tradingMode:"FUTURES"}))}
+        strategyId={automation.strategyId} onStrategyChange={(strategyId) => setAutomation((current) => ({ ...current, strategyId }))}
+        onOpen={(input) => { const result = openFutures(portfolio, { ...input,marketId:selectedMarket, price: marketPrice ?? NaN }); if (!result.error) setPortfolio(result.portfolio); return result.error; }}
+        onClose={() => setPortfolio((current) => closeFuturesMarket(current,selectedMarket, marketPrice ?? NaN, new Date().toISOString(), true))} />}
       </div>
-      </> : <FuturesPaperPanel portfolio={portfolio} price={marketData?.price ?? null}
-        autonomousEnabled={futuresAutonomousEnabled} onAutonomousChange={(enabled) => { futuresAutoLastSeen.current = null; setFuturesAutonomousEnabled(enabled); }}
-        strategyId={automation.strategyId} onStrategyChange={(strategyId) => { futuresAutoLastSeen.current = null; setAutomation((current) => ({ ...current, strategyId })); }}
-        onOpen={(input) => { const result = openFutures(portfolio, { ...input, price: marketData?.price ?? NaN }); if (!result.error) setPortfolio(result.portfolio); return result.error; }}
-        onClose={() => setPortfolio((current) => closeFutures(current, marketData?.price ?? NaN, new Date().toISOString(), true))} />}
       <div className="primary-grid">
         <MarketPanel
-          data={marketData}
+          data={activeMarketData}
           error={marketError}
           isLoading={isLoading}
           isRefreshing={isRefreshing}
@@ -406,7 +371,7 @@ export function LiveMarketSection() {
         <ReadOnlyWalletPanel />
       </div>
       <div className="secondary-grid">
-        <RecentTrades trades={portfolio.trades} />
+        <MultiMarketHistory portfolio={portfolio} />
         <ActivityLog
           activity={portfolio.activity.slice(0, 15)}
           isLoading={!hydrated}

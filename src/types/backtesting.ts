@@ -8,7 +8,7 @@ export type CandleInterval = "1 hour" | "6 hours";
 export type IntrabarCollisionPolicy = "STOP_FIRST" | "TARGET_FIRST";
 export interface HistoricalCandle { timestamp:string; open:number; high:number; low:number; close:number; volume:number; price:number; }
 export interface HistoricalDataQuality{expectedApproximateCandles:number;actualValidCandles:number;missingIntervalCount:number;duplicateCountRemoved:number;invalidCandleCountRemoved:number;firstTimestamp:string|null;lastTimestamp:string|null;coveragePercent:number}
-export interface HistoricalDataSet { source:"Coinbase Exchange"; sourcePair:"SOL-USD"; interval:CandleInterval; timeframe:BacktestTimeframe; fetchedAt:string; observations:HistoricalCandle[];quality:HistoricalDataQuality; }
+export interface HistoricalDataSet { marketId?: import("@/lib/market/marketRegistry").MarketId; source:"Coinbase Exchange"; sourcePair:string; interval:CandleInterval; timeframe:BacktestTimeframe; fetchedAt:string; observations:HistoricalCandle[];quality:HistoricalDataQuality; }
 export interface BacktestRiskConfig { stopLossPercent:number; takeProfitPercent:number; }
 export interface BacktestExecutionConfig { feePercentPerSide:number; slippagePercent:number; collisionPolicy:IntrabarCollisionPolicy; }
 export interface BacktestConfig { strategy:Readonly<MomentumStrategyConfig>; paperTrading:Readonly<PaperTradingConfig>; risk:Readonly<BacktestRiskConfig>; execution?:Readonly<BacktestExecutionConfig>; }

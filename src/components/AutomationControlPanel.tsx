@@ -2,8 +2,8 @@
 import { SectionHeader } from "./SectionHeader";
 import { LIVE_TIMEFRAME_IDS } from "@/lib/market/liveCandles";
 import { strategyList } from "@/lib/strategy/strategyRegistry";
-import { paperTradingConfig } from "@/lib/trading/tradingConfig";
 import type { AutomationSettings, AutomationStatus } from "@/types/liveTrading";
+import { MARKET_IDS,MARKET_REGISTRY } from "@/lib/market/marketRegistry";
 interface Props {
   settings: AutomationSettings;
   status: AutomationStatus;
@@ -56,6 +56,8 @@ export function AutomationControlPanel({
             OFF
           </button>
         </div>
+        <label>Market<select value={settings.marketId??"SOL"} onChange={event=>onChange({...settings,marketId:event.target.value as AutomationSettings["marketId"],lastProcessedCandleId:null})}>{MARKET_IDS.map(id=><option key={id} value={id}>{MARKET_REGISTRY[id].displaySymbol}</option>)}</select></label>
+        <label>Trading mode<select value={settings.tradingMode??"SPOT"} onChange={event=>onChange({...settings,tradingMode:event.target.value as "SPOT"|"FUTURES",lastProcessedCandleId:null})}><option>SPOT</option><option>FUTURES</option></select></label>
         <label>
           Strategy
           <select
@@ -76,6 +78,10 @@ export function AutomationControlPanel({
             ))}
           </select>
         </label>
+        {(settings.tradingMode??"SPOT")==="FUTURES"&&<label>Leverage<select value={settings.leverage??1} onChange={event=>onChange({...settings,leverage:Number(event.target.value) as 1|2|3|5})}>{[1,2,3,5].map(x=><option key={x} value={x}>{x}x</option>)}</select></label>}
+        <label>Allocation %<input type="number" min="1" max="100" value={settings.allocationPercent??10} onChange={event=>onChange({...settings,allocationPercent:Number(event.target.value)})}/></label>
+        <label>Stop loss %<input type="number" min="0" value={settings.stopLossPercent??3} onChange={event=>onChange({...settings,stopLossPercent:Number(event.target.value)})}/></label>
+        <label>Take profit %<input type="number" min="0" value={settings.takeProfitPercent??6} onChange={event=>onChange({...settings,takeProfitPercent:Number(event.target.value)})}/></label>
         <label>
           Automation timeframe
           <select
@@ -101,6 +107,7 @@ export function AutomationControlPanel({
         {[
           ["Status", settings.enabled ? "RUNNING" : "STOPPED"],
           ["Strategy", strategy.name],
+          ["Market / mode", `${settings.marketId??"SOL"} ${settings.tradingMode??"SPOT"}`],
           ["Timeframe", settings.timeframe],
           ["Signal", status.signal?.signal ?? "WAITING"],
           [
@@ -128,10 +135,10 @@ export function AutomationControlPanel({
               : "N/A",
           ],
           ["Processed", String(settings.processedCandleIds.length)],
-          ["Allocation", `${paperTradingConfig.positionSizePercent}%`],
+          ["Allocation", `${settings.allocationPercent??10}%`],
           [
             "Stop / target",
-            `${paperTradingConfig.stopLossPercent}% / ${paperTradingConfig.takeProfitPercent}%`,
+            `${settings.stopLossPercent??3}% / ${settings.takeProfitPercent??6}%`,
           ],
         ].map(([label, value]) => (
           <div key={label}>

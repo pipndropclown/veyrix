@@ -2638,3 +2638,11 @@ summary:focus-visible {
     gap: 12px;
   }
 }
+
+/* V1.3 multi-market account summaries */
+.open-position-summary { padding: 16px; border: 1px solid var(--border, #29363d); border-radius: 12px; margin: 16px 0; }
+.open-position-summary > div, .history-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.open-position-summary button, .history-filters select { padding: 8px 12px; border: 1px solid var(--border, #29363d); border-radius: 6px; background: var(--panel, #111a20); color: inherit; }
+.asset-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-top: 16px; }
+.asset-breakdown-grid > div { display: flex; flex-direction: column; gap: 8px; }
+.history-filters { margin-bottom: 16px; }

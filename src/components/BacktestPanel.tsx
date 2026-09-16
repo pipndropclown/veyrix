@@ -20,6 +20,7 @@ import type {
   StrategyComparisonResult,
 } from "@/types/backtesting";
 import type { StrategyId } from "@/types/strategy";
+import { MARKET_IDS, MARKET_REGISTRY, type MarketId } from "@/lib/market/marketRegistry";
 const usd = (v: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -64,7 +65,8 @@ function SignalInspector({ result }: { result: BacktestResult }) {
     </section>
   );
 }
-function SingleResults({ result }: { result: BacktestResult }) {
+function SingleResults({ result, marketId }: { result: BacktestResult; marketId: MarketId }) {
+
   const a = result.analytics,
     stats = [
       ["Final balance", usd(result.finalBalance)],
@@ -121,7 +123,7 @@ function SingleResults({ result }: { result: BacktestResult }) {
             </small>
           </div>
           <div className="alpha-card">
-            <span>Return vs Full SOL</span>
+            <span>Return vs Full {marketId}</span>
             <strong>{pct(result.returnVsFullSolPercent)}</strong>
             <small>Simple return difference.</small>
           </div>
@@ -200,7 +202,7 @@ function SingleResults({ result }: { result: BacktestResult }) {
     </>
   );
 }
-function ArenaResults({ arena }: { arena: StrategyComparisonResult }) {
+function ArenaResults({ arena, marketId }: { arena: StrategyComparisonResult; marketId: MarketId }) {
   const colors = ["#61f2c2", "#72a8ff", "#d58cff"];
   return (
     <>
@@ -252,7 +254,7 @@ function ArenaResults({ arena }: { arena: StrategyComparisonResult }) {
               ))}
               <tr>
                 <td>
-                  <strong>Buy &amp; Hold SOL</strong>
+                  <strong>Buy &amp; Hold {marketId}</strong>
                 </td>
                 <td>N/A</td>
                 <td>{usd(arena.benchmark.finalBalance)}</td>
@@ -301,7 +303,7 @@ function ArenaResults({ arena }: { arena: StrategyComparisonResult }) {
               points: e.result.strategyEquityCurve,
             })),
             {
-              name: "Buy & Hold SOL",
+              name: `Buy & Hold ${marketId}`,
               color: "#e9bf70",
               points: arena.benchmark.equityCurve,
             },
@@ -317,6 +319,7 @@ function ArenaResults({ arena }: { arena: StrategyComparisonResult }) {
 }
 export function BacktestPanel() {
   const [mode, setMode] = useState<"single" | "compare">("single"),
+    [marketId, setMarketId] = useState<MarketId>("SOL"),
     [timeframe, setTimeframe] = useState<BacktestTimeframe>("7D"),
     [strategyId, setStrategyId] = useState<StrategyId>("momentum"),
     [result, setResult] = useState<BacktestResult | null>(null),
@@ -328,7 +331,7 @@ export function BacktestPanel() {
     setRunning(true);
     setError(null);
     try {
-      const response = await fetch(`/api/historical?timeframe=${timeframe}`, {
+      const response = await fetch(`/api/historical?symbol=${marketId}&timeframe=${timeframe}`, {
           cache: "no-store",
         }),
         payload = (await response.json()) as HistoricalApiResponse;
@@ -368,6 +371,7 @@ export function BacktestPanel() {
         }
       />
       <div className="lab-controls">
+        <select disabled={running} aria-label="Research market" value={marketId} onChange={(event) => { setMarketId(event.target.value as MarketId); setResult(null); setArena(null); }}>{MARKET_IDS.map((id) => <option key={id} value={id}>{MARKET_REGISTRY[id].displaySymbol}</option>)}</select>
         <div className="period-selector">
           {(["single", "compare"] as const).map((v) => (
             <button
@@ -430,8 +434,8 @@ export function BacktestPanel() {
         </span>
       </div>
       {error && <p className="backtest-error">{error}</p>}
-      {result && <SingleResults result={result} />}{" "}
-      {arena && <ArenaResults arena={arena} />}{" "}
+      {result && <SingleResults result={result} marketId={marketId} />}{" "}
+      {arena && <ArenaResults arena={arena} marketId={marketId} />}{" "}
       {!result && !arena && !error && (
         <div className="backtest-empty">
           Select a strategy or comparison mode, then run the isolated

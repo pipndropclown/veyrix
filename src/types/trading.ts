@@ -1,6 +1,7 @@
 import type { ActivityItem, Signal } from "@/types";
 import type { LiveTimeframe } from "./liveTrading";
 import type { StrategyId } from "./strategy";
+import type { MarketId } from "@/lib/market/marketRegistry";
 
 export interface PaperTradingConfig {
   startingBalanceUsd: number;
@@ -16,6 +17,7 @@ export interface PaperTradingConfig {
 export type TradeExitReason = "STOP_LOSS" | "TAKE_PROFIT" | "STRATEGY_SIGNAL";
 export type PaperTradeSource = "MANUAL" | "AUTONOMOUS";
 export interface FuturesTrade {
+  marketId?: MarketId;
   id: string;
   side: "LONG" | "SHORT";
   leverage: 1 | 2 | 3 | 5;
@@ -33,7 +35,10 @@ export interface FuturesTrade {
   exitTimestamp: string | null;
   exitReason: "MANUAL" | "STOP_LOSS" | "TAKE_PROFIT" | "LIQUIDATION" | null;
   realizedPnl: number | null;
+  feesUsdc?: number;
 }
+export interface SpotPosition { marketId: MarketId; quantity: number; averageEntryPrice: number; entryTimestamp: string; tradeId: string; }
+export interface MultiMarketSpotTrade { id:string; marketId:MarketId; mode:"SPOT"; side:"BUY"; source:PaperTradeSource; entryTimestamp:string; exitTimestamp:string|null; entryPrice:number; exitPrice:number|null; quantity:number; amountUsdc:number; realizedPnl:number|null; status:"OPEN"|"CLOSED"; exitReason:"MANUAL"|"STOP_LOSS"|"TAKE_PROFIT"|null; stopLoss:number|null; takeProfit:number|null; }
 
 export interface PaperTrade {
   id: string;
@@ -79,6 +84,8 @@ export interface PaperPortfolioState {
   tradingPausedForDay: boolean;
   futuresTrades?: FuturesTrade[];
   futuresProcessedCandleIds?: string[];
+  spotPositions?: Partial<Record<MarketId, SpotPosition>>;
+  multiMarketSpotTrades?: MultiMarketSpotTrade[];
 }
 
 export interface PaperPortfolioMetrics {

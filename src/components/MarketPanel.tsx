@@ -38,7 +38,7 @@ export function MarketPanel({
     <section className="panel market-panel">
       <SectionHeader
         eyebrow="Market"
-        title="SOL / USDC"
+        title={data?.symbol ?? "Market / USDC"}
         action={
           <span className={`status-pill ${error ? "unavailable" : ""}`}>
             <i />
@@ -50,7 +50,7 @@ export function MarketPanel({
         <div className="market-loading" role="status">
           <span />
           <span />
-          <small>Loading live SOL market data…</small>
+          <small>Loading live market data…</small>
         </div>
       ) : data ? (
         <>
@@ -102,7 +102,7 @@ export function MarketPanel({
         <div className="market-error" role="alert">
           <strong>Market data unavailable</strong>
           <p>
-            Live SOL pricing could not be retrieved. Veyrix will retry
+            Live market pricing could not be retrieved. Veyrix will retry
             automatically.
           </p>
         </div>

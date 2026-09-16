@@ -142,8 +142,11 @@ export function automationCandleId(
   strategyId: string,
   timeframe: LiveTimeframe,
   timestamp: string,
+  marketId?: string,
+  mode?: string,
 ): string {
-  return `${strategyId}:${timeframe}:${new Date(timestamp).toISOString()}`;
+  const legacy=`${strategyId}:${timeframe}:${new Date(timestamp).toISOString()}`;
+  return marketId&&mode?`${marketId}:${mode}:${legacy}`:legacy;
 }
 
 export function nextCandleClose(

@@ -120,3 +120,7 @@ Potential next steps include broader historical sources, portable research repla
 ## V1.1.1 update
 
 Accounts are optional: Guest Mode remains fully usable. When configured, Supabase provides user-scoped cloud persistence for virtual paper-account data and preferences. Dark, Light, and System themes are available. Wallet identity remains read-only and separate from the paper account; no real trades or wallet transactions are possible.
+
+## V1.3 Multi-Market Trading Lab
+
+Veyrix supports BTC, ETH, and SOL Spot Paper and Futures Paper markets through Coinbase Exchange public USD reference feeds. Paper positions settle only in virtual USDC. A centralized registry controls provider IDs and display precision, one shared virtual account funds all markets, and one market-specific autonomous configuration can run at a time. Historical backtesting and reproducible research can select BTC, ETH, or SOL.

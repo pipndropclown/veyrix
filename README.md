@@ -84,3 +84,7 @@ The V1.0 release passes 363 deterministic tests covering strategies, execution, 
 ## Roadmap
 
 Future research may broaden datasets, improve evidence diagnostics, and add portable research replay. The safety boundary remains simulation-first; real-money automation is not part of this release.
+
+## V1.3 Multi-Market Trading Lab
+
+Veyrix supports BTC, ETH, and SOL Spot Paper and Futures Paper markets through Coinbase Exchange public USD reference feeds. Paper positions settle only in virtual USDC. A centralized registry controls provider IDs and display precision, one shared virtual account funds all markets, and one market-specific autonomous configuration can run at a time. Historical backtesting and reproducible research can select BTC, ETH, or SOL.

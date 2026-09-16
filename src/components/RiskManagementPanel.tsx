@@ -34,11 +34,11 @@ export function RiskManagementPanel({
       />
       <div className="risk-grid">
         <div>
-          <span>Stop loss</span>
+          <span>Default stop loss</span>
           <strong>{paperTradingConfig.stopLossPercent}%</strong>
         </div>
         <div>
-          <span>Take profit</span>
+          <span>Default take profit</span>
           <strong>{paperTradingConfig.takeProfitPercent}%</strong>
         </div>
         <div>
@@ -61,7 +61,7 @@ export function RiskManagementPanel({
         </div>
         <div>
           <span>Position risk</span>
-          <strong>{levels ? "Monitoring" : "No open position"}</strong>
+          <strong>{levels ? "Monitoring" : "See position settings"}</strong>
           <small>
             {levels
               ? `Stop ${usd(levels.stopLossPrice)} · Target ${usd(levels.takeProfitPrice)}`
