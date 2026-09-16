@@ -247,6 +247,10 @@ export function LiveMarketSection() {
     lastAction =
       portfolio.activity.find((item) => item.type === "trade")?.title ??
       "Waiting";
+  // Local dates and persisted account state must not differ from prerendered HTML.
+  if (!hydrated) {
+    return <section className="terminal-section" role="status">Loading paper trading terminal...</section>;
+  }
   return (
     <>
       <section className="terminal-section">
