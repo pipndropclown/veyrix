@@ -48,7 +48,7 @@ Veyrix runs multiple strategies through the same deterministic simulation and va
 
 ## Key Features
 
-- Live public SOL market context and paper portfolio
+- Live public BTC, ETH, and SOL market context with a shared virtual-USDC paper portfolio
 - Live candlestick terminal with volume, trade markers, and risk levels
 - Visible closed-candle autonomous paper trading and confirmed manual paper trades
 - Read-only Phantom, Solflare, and Backpack wallet identity, fully separated from virtual funds
@@ -74,11 +74,11 @@ Veyrix uses public SOL-USD market prices and OHLC candles from Coinbase Exchange
 
 ## Current Safety Model
 
-Paper trading and historical simulation only. No private keys, seed phrases, wallet connection, leverage, margin, short selling, real funds, or real exchange execution.
+Paper trading and historical simulation only. No private keys, seed phrases, wallet signing, real funds, or real exchange execution. Simulated leverage, margin, and short positions exist only inside the virtual paper account.
 
 ## Current MVP
 
-Markets: SOL/USDC paper pair. Strategies: Momentum, Moving Average, Mean Reversion. Trading: manual and autonomous long-only spot simulation. Research: backtesting, robustness, walk-forward, regime, extended validation, and reports. Wallet: read-only Phantom/Solflare/Backpack. Themes: Dark, Light, System. Accounts/cloud sync: architecture ready for activation; Supabase public values are not configured in the current deployment.
+Markets: BTC, ETH, and SOL/USDC paper pairs. Strategies: Momentum, Moving Average, Mean Reversion. Trading: manual Spot and simulated Futures paper execution, plus multi-agent autonomous paper simulation. Research: backtesting, robustness, walk-forward, regime, extended validation, and reports. Wallet: read-only Phantom/Solflare/Backpack. Themes: Dark, Light, System. Accounts/cloud sync: architecture ready for activation; Supabase public values are not configured in the current deployment.
 
 ## Ownership verification
 
@@ -124,3 +124,9 @@ Accounts are optional: Guest Mode remains fully usable. When configured, Supabas
 ## V1.3 Multi-Market Trading Lab
 
 Veyrix supports BTC, ETH, and SOL Spot Paper and Futures Paper markets through Coinbase Exchange public USD reference feeds. Paper positions settle only in virtual USDC. A centralized registry controls provider IDs and display precision, one shared virtual account funds all markets, and one market-specific autonomous configuration can run at a time. Historical backtesting and reproducible research can select BTC, ETH, or SOL.
+
+## V1.4 Multi-Agent Automation & Performance Analytics
+
+Veyrix runs up to six independent simulated paper agents at once across BTC, ETH, and SOL Spot or Futures markets. Agents share one browser-local virtual-USDC account, with per-market/mode position ownership, capital checks, pause-safe risk monitoring, and visible conflict handling. A centralized scheduler shares candle requests by market/timeframe while keeping execution IDs per agent. The dashboard compares actual recorded paper-trade metrics and shows individual realized equity curves; a documented bounded score remains unavailable before five completed trades. Legacy V1.3 automation is migrated into an agent. See [V1.4 technical details](V1.4.md).
+
+Veyrix has no live trading integration: simulated leverage is bookkeeping within the virtual account, not borrowing. Agent execution and persistence are browser-side; closing the browser pauses new evaluations. Research links preselect a market/strategy but never launch jobs automatically. Metrics are descriptive, not investment advice or predictions.

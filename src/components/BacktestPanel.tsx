@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EquityCurveChart } from "./EquityCurveChart";
 import { MultiEquityCurveChart } from "./MultiEquityCurveChart";
 import { SectionHeader } from "./SectionHeader";
@@ -21,6 +21,8 @@ import type {
 } from "@/types/backtesting";
 import type { StrategyId } from "@/types/strategy";
 import { MARKET_IDS, MARKET_REGISTRY, type MarketId } from "@/lib/market/marketRegistry";
+import { LIVE_TIMEFRAME_IDS } from "@/lib/market/liveCandles";
+import type { LiveTimeframe } from "@/types/liveTrading";
 const usd = (v: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -327,6 +329,8 @@ export function BacktestPanel() {
     [running, setRunning] = useState(false),
     [error, setError] = useState<string | null>(null),
     definition = getTimeframeDefinition(timeframe);
+  const [agentTimeframe,setAgentTimeframe]=useState<LiveTimeframe|null>(null);
+  useEffect(()=>{const timer=window.setTimeout(()=>{const params=new URLSearchParams(window.location.search),market=params.get("market"),strategy=params.get("strategy"),agentTf=params.get("timeframe");if(MARKET_IDS.includes(market as MarketId))setMarketId(market as MarketId);if(strategy&&Object.hasOwn(strategyRegistry,strategy))setStrategyId(strategy as StrategyId);if(LIVE_TIMEFRAME_IDS.includes(agentTf as LiveTimeframe))setAgentTimeframe(agentTf as LiveTimeframe)},0);return()=>clearTimeout(timer)},[]);
   async function run() {
     setRunning(true);
     setError(null);
@@ -409,6 +413,7 @@ export function BacktestPanel() {
           ))}
         </div>
       </div>
+      {agentTimeframe&&<p className="agent-research-context">Opened from an automation agent ({MARKET_REGISTRY[marketId].displaySymbol} Â· {strategyRegistry[strategyId].name} Â· {agentTimeframe} candles). Choose a research period below and start a run when ready.</p>}
       <div className="strategy-description">
         <strong>
           {mode === "compare"

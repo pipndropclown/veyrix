@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityLog } from "./ActivityLog";
-import { AutomationControlPanel } from "./AutomationControlPanel";
+import { AgentDashboard } from "./AgentDashboard";
 import { LiveCandlestickChart } from "./LiveCandlestickChart";
 import { FuturesPaperPanel } from "./FuturesPaperPanel";
 import { closeFuturesMarket, openFutures } from "@/lib/trading/futuresEngine";
@@ -9,7 +9,6 @@ import { MultiMarketSpotPanel } from "./MultiMarketSpotPanel";
 import { OpenPositionsSummary } from "./OpenPositionsSummary";
 import { closeMarketSpot,openMarketSpot } from "@/lib/trading/multiMarketSpotEngine";
 import { MARKET_IDS,MARKET_REGISTRY,type MarketId } from "@/lib/market/marketRegistry";
-import { evaluateMultiMarketAutomation } from "@/lib/trading/multiMarketAutomation";
 import { MarketPanel } from "./MarketPanel";
 import { PerformanceAnalyticsPanel } from "./PerformanceAnalyticsPanel";
 import { MultiMarketPortfolioOverview } from "./MultiMarketPortfolioOverview";
@@ -19,42 +18,30 @@ import { ReadOnlyWalletPanel } from "./ReadOnlyWalletPanel";
 import { RiskManagementPanel } from "./RiskManagementPanel";
 import { SectionHeader } from "./SectionHeader";
 import { calculatePerformanceAnalytics } from "@/lib/analytics/performanceAnalytics";
-import {
-  LIVE_TIMEFRAMES,
-  LIVE_TIMEFRAME_IDS,
-  nextCandleClose,
-} from "@/lib/market/liveCandles";
-import {
-  AUTOMATION_STORAGE_KEY,
-  DEFAULT_AUTOMATION,
-  restoreAutomationSettings,
-} from "@/lib/trading/automationEngine";
+import { LIVE_TIMEFRAMES, LIVE_TIMEFRAME_IDS } from "@/lib/market/liveCandles";
+import { AUTOMATION_STORAGE_KEY } from "@/lib/trading/automationEngine";
 import { calculateMultiMarketAccount } from "@/lib/trading/accountMetrics";
 import { unifiedTradeHistory } from "@/lib/trading/tradeHistory";
 import {
   calculatePortfolioMetrics,
   createInitialPaperPortfolio,
-  restorePaperPortfolio,
 } from "@/lib/trading/paperPortfolio";
 import { PAPER_PORTFOLIO_STORAGE_KEY } from "@/lib/trading/tradingConfig";
 import type { MarketApiResponse, MarketData } from "@/types/market";
 import type {
-  AutomationSettings,
-  AutomationStatus,
   ChartMode,
   LiveCandleApiResponse,
   LiveTimeframe,
 } from "@/types/liveTrading";
 import type { HistoricalCandle } from "@/types/backtesting";
 import type { PaperPortfolioState } from "@/types/trading";
-const MARKET_REFRESH_MS = 30000;
-const emptyStatus = (timeframe: LiveTimeframe): AutomationStatus => ({
-  signal: null,
-  lastEvaluatedCandle: null,
-  lastEvaluationTime: null,
-  lastExecution: null,
-  nextExpectedClose: nextCandleClose(timeframe),
-});
+import type { AgentConfig, PaperLabState } from "@/types/agents";
+import { emptyAgentStore, createAgent, setAgentEnabled, editAgent, deleteAgent } from "@/lib/agents/agentModel";
+import { restorePaperLab, serializePaperLab } from "@/lib/agents/agentPersistence";
+import { AGENT_STORAGE_KEY } from "@/lib/agents/agentModel";
+import { claimPaperController } from "@/lib/agents/browserController";
+import { fetchSharedCandles, fetchSharedMarket } from "@/lib/agents/candleScheduler";
+import { candleGroupKey, evaluateAgentBatch, groupEnabledAgents } from "@/lib/agents/agentEngine";
 export function LiveMarketSection() {
   const [tradingMode, setTradingMode] = useState<"SPOT" | "FUTURES">("SPOT");
   const [selectedMarket,setSelectedMarket]=useState<MarketId>("SOL");
@@ -63,159 +50,25 @@ export function LiveMarketSection() {
     [marketError, setMarketError] = useState<string | null>(null),
     [isLoading, setIsLoading] = useState(true),
     [isRefreshing, setIsRefreshing] = useState(false);
-  const [portfolio, setPortfolio] = useState<PaperPortfolioState>(
-      createInitialPaperPortfolio,
-    ),
-    [automation, setAutomation] =
-      useState<AutomationSettings>(DEFAULT_AUTOMATION),
-    [automationStatus, setAutomationStatus] = useState<AutomationStatus>(() =>
-      emptyStatus("15m"),
-    ),
-    [hydrated, setHydrated] = useState(false);
-  const [chartTimeframe, setChartTimeframe] = useState<LiveTimeframe>("15m"),
-    [chartMode, setChartMode] = useState<ChartMode>("CANDLESTICK"),
-    [candles, setCandles] = useState<HistoricalCandle[]>([]),
-    [candleError, setCandleError] = useState<string | null>(null),
-    [candleLoading, setCandleLoading] = useState(true);
-  const automationBusy = useRef(false);
-  const view = useRef({market:selectedMarket,timeframe:chartTimeframe});
+  const [portfolio,setPortfolio]=useState<PaperPortfolioState>(createInitialPaperPortfolio),[agentStore,setAgentStore]=useState(emptyAgentStore()),[controllerAvailable,setControllerAvailable]=useState(false),[agentError,setAgentError]=useState<string|null>(null),[hydrated,setHydrated]=useState(false);
+  const [chartTimeframe,setChartTimeframe]=useState<LiveTimeframe>("15m"),[chartMode,setChartMode]=useState<ChartMode>("CANDLESTICK"),[candles,setCandles]=useState<HistoricalCandle[]>([]),[candleError,setCandleError]=useState<string|null>(null),[candleLoading,setCandleLoading]=useState(true);
+  const labRef=useRef<PaperLabState>({portfolio:createInitialPaperPortfolio(),agents:emptyAgentStore()}),controllerRef=useRef<ReturnType<typeof claimPaperController>|null>(null),schedulerBusy=useRef(false),view=useRef({market:selectedMarket,timeframe:chartTimeframe});
   useEffect(()=>{view.current={market:selectedMarket,timeframe:chartTimeframe}},[selectedMarket,chartTimeframe]);
-  useEffect(() => {
-    const id = window.setTimeout(() => {
-      try {
-        const saved = localStorage.getItem(PAPER_PORTFOLIO_STORAGE_KEY),
-          settings = localStorage.getItem(AUTOMATION_STORAGE_KEY);
-        setPortfolio(
-          saved
-            ? restorePaperPortfolio(JSON.parse(saved))
-            : createInitialPaperPortfolio(),
-        );
-        setAutomation(
-          settings
-            ? restoreAutomationSettings(JSON.parse(settings))
-            : { ...DEFAULT_AUTOMATION },
-        );
-      } catch {
-        setPortfolio(createInitialPaperPortfolio());
-        setAutomation({ ...DEFAULT_AUTOMATION });
-      }
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, []);
-  useEffect(() => {
-    if (hydrated)
-      localStorage.setItem(
-        PAPER_PORTFOLIO_STORAGE_KEY,
-        JSON.stringify(portfolio),
-      );
-  }, [hydrated, portfolio]);
-  useEffect(() => {
-    if (hydrated)
-      localStorage.setItem(AUTOMATION_STORAGE_KEY, JSON.stringify(automation));
-  }, [hydrated, automation]);
-  const fetchMarket = useCallback(async (background = false) => {
-    if (background) setIsRefreshing(true);
-    try {
-      const response = await fetch(`/api/market?symbol=${selectedMarket}`, { cache: "no-store" }),
-        payload = (await response.json()) as MarketApiResponse;
-      if (!response.ok || !payload.success) throw new Error();
-      if(view.current.market!==selectedMarket)return;
-      setPortfolio((current) => {
-        const spot = current;
-        return closeMarketSpot(closeFuturesMarket(spot,selectedMarket,payload.data.price,payload.data.lastUpdated),selectedMarket,payload.data.price,payload.data.lastUpdated,false);
-      });
-      setMarketPrices(current=>({...current,[selectedMarket]:payload.data.price}));
-      setMarketData(payload.data);
-      setMarketError(null);
-    } catch {
-      if(view.current.market===selectedMarket){setMarketData(null);setMarketError("Market data temporarily unavailable");}
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [selectedMarket]);
-  const fetchCandles = useCallback(
-    async (timeframe: LiveTimeframe, marketId:MarketId=selectedMarket, updateChart=true) => {
-      try {
-        const response = await fetch(`/api/candles?symbol=${marketId}&timeframe=${timeframe}`, {
-            cache: "no-store",
-          }),
-          payload = (await response.json()) as LiveCandleApiResponse;
-        if (!response.ok || !payload.success) throw new Error();
-        if (updateChart && timeframe === view.current.timeframe && marketId===view.current.market) {
-          setCandles(payload.data.candles);
-          setCandleError(null);
-          setCandleLoading(false);
-        }
-        return payload.data.candles;
-      } catch {
-        if (updateChart && timeframe === view.current.timeframe && marketId===view.current.market) {
-          setCandleError(
-            "Chart candles are temporarily unavailable. Veyrix will retry.",
-          );
-          setCandleLoading(false);
-        }
-        return null;
-      }
-    },
-    [selectedMarket],
-  );
-  useEffect(() => {
-    if (!hydrated) return;
-    const initial = window.setTimeout(() => void fetchMarket(), 0);
-    const id = setInterval(() => void fetchMarket(true), MARKET_REFRESH_MS);
-    return () => { window.clearTimeout(initial); clearInterval(id); };
-  }, [fetchMarket, hydrated]);
-  useEffect(()=>{if(!hydrated)return;const refresh=async()=>{const needed=new Set<MarketId>([...Object.keys(portfolio.spotPositions??{}) as MarketId[],...(portfolio.futuresTrades??[]).filter(t=>t.status==="OPEN").map(t=>t.marketId??"SOL"),automation.enabled?(automation.marketId??"SOL"):selectedMarket]);needed.delete(selectedMarket);await Promise.all([...needed].map(async marketId=>{try{const response=await fetch(`/api/market?symbol=${marketId}`,{cache:"no-store"}),payload=await response.json() as MarketApiResponse;if(response.ok&&payload.success){setMarketPrices(current=>({...current,[marketId]:payload.data.price}));setPortfolio(current=>closeMarketSpot(closeFuturesMarket(current,marketId,payload.data.price,payload.data.lastUpdated),marketId,payload.data.price,payload.data.lastUpdated,false))}}catch{}}))};const initial=window.setTimeout(()=>void refresh(),0),id=window.setInterval(()=>void refresh(),MARKET_REFRESH_MS);return()=>{clearTimeout(initial);clearInterval(id)}},[hydrated,portfolio.spotPositions,portfolio.futuresTrades,automation.enabled,automation.marketId,selectedMarket]);
-  useEffect(() => {
-    const initial = window.setTimeout(() => void fetchCandles(chartTimeframe), 0);
-    const id = setInterval(
-      () => void fetchCandles(chartTimeframe),
-      LIVE_TIMEFRAMES[chartTimeframe].refreshMs,
-    );
-    return () => { window.clearTimeout(initial); clearInterval(id); };
-  }, [chartTimeframe, fetchCandles]);
-  useEffect(() => {
-    if (!hydrated) return;
-    const settings = automation;
-    let cancelled=false;
-    const evaluate = async () => {
-      if (automationBusy.current) return;
-      automationBusy.current = true;
-      try {
-        const data =
-          await fetchCandles(settings.timeframe,settings.marketId??"SOL",false);
-        if (cancelled || !data?.length) return;
-        setPortfolio((current) => {
-          const result = evaluateMultiMarketAutomation({
-            portfolio: current,
-            settings,
-            candles: data,
-          });
-          setAutomation(result.settings);
-          if (result.outcome !== "DUPLICATE")
-            setAutomationStatus(result.status);
-          return result.portfolio;
-        });
-      } finally {
-        automationBusy.current = false;
-      }
-    };
-    void evaluate();
-    const id = setInterval(
-      () => void evaluate(),
-      Math.min(30000, LIVE_TIMEFRAMES[settings.timeframe].refreshMs),
-    );
-    return () => {cancelled=true;clearInterval(id)};
-  }, [
-    automation,
-    chartTimeframe,
-    fetchCandles,
-    hydrated,
-    selectedMarket,
-  ]);
-  const activeMarketData = marketData?.marketId===selectedMarket ? marketData : null;
+  const commitLab=useCallback((next:PaperLabState)=>{const lease=controllerRef.current;if(!lease?.owns()||agentError)return false;try{localStorage.setItem(AGENT_STORAGE_KEY,JSON.stringify(next.agents));localStorage.setItem(PAPER_PORTFOLIO_STORAGE_KEY,serializePaperLab(next));}catch{setAgentError("Paper account storage is full or unavailable. Trading is paused until the saved account can be checked.");return false;}labRef.current=next;setPortfolio(next.portfolio);setAgentStore(next.agents);return true},[agentError]);
+  useEffect(()=>{
+    let live=true,lease:ReturnType<typeof claimPaperController>|null=null,heartbeat=0;
+    const start=window.setTimeout(()=>{
+      lease=claimPaperController(localStorage);controllerRef.current=lease;setControllerAvailable(lease.owns());
+      try{const pv=localStorage.getItem(PAPER_PORTFOLIO_STORAGE_KEY),av=localStorage.getItem(AGENT_STORAGE_KEY),legacy=localStorage.getItem(AUTOMATION_STORAGE_KEY),restored=restorePaperLab({portfolioValue:pv?JSON.parse(pv):null,agentValue:av?JSON.parse(av):null,legacyAutomation:legacy?JSON.parse(legacy):null});if(!live)return;labRef.current=restored.state;setPortfolio(restored.state.portfolio);setAgentStore(restored.state.agents);setAgentError(restored.error);setHydrated(true);if(!restored.error&&lease.owns()&&(!pv||!restored.state.agents.migratedV13)){localStorage.setItem(PAPER_PORTFOLIO_STORAGE_KEY,serializePaperLab(restored.state));localStorage.setItem(AGENT_STORAGE_KEY,JSON.stringify(restored.state.agents));}}
+      catch{if(live){setAgentError("Saved paper account could not be restored. Existing browser data has been preserved.");setHydrated(true)}}
+      heartbeat=window.setInterval(()=>setControllerAvailable(Boolean(lease?.owns())),1000);
+    },0);
+    const onStorage=(event:StorageEvent)=>{if(event.key!==PAPER_PORTFOLIO_STORAGE_KEY||!event.newValue)return;try{const restored=restorePaperLab({portfolioValue:JSON.parse(event.newValue)});labRef.current=restored.state;setPortfolio(restored.state.portfolio);setAgentStore(restored.state.agents);}catch{setAgentError("Paper account changed in another tab but could not be restored.")}};
+    window.addEventListener("storage",onStorage);
+    return()=>{live=false;clearTimeout(start);if(heartbeat)clearInterval(heartbeat);window.removeEventListener("storage",onStorage);lease?.release();controllerRef.current=null};
+  },[]);  const fetchCandles=useCallback(async(timeframe:LiveTimeframe,marketId:MarketId=selectedMarket,updateChart=true)=>{try{const data=await fetchSharedCandles(marketId,timeframe,async()=>{const r=await fetch(`/api/candles?symbol=${marketId}&timeframe=${timeframe}`,{cache:"no-store"});return await r.json() as LiveCandleApiResponse});if(updateChart&&timeframe===view.current.timeframe&&marketId===view.current.market){setCandles(data);setCandleError(null);setCandleLoading(false)}return data}catch{if(updateChart&&timeframe===view.current.timeframe&&marketId===view.current.market){setCandleError("Chart candles are temporarily unavailable. Veyrix will retry.");setCandleLoading(false)}return null}},[selectedMarket]);
+  useEffect(()=>{if(!hydrated||agentError||!controllerAvailable)return;let stopped=false;const tick=async()=>{if(schedulerBusy.current||!controllerRef.current?.owns())return;schedulerBusy.current=true;try{const current=labRef.current,agentGroups=groupEnabledAgents(current.agents.agents),groups=[...new Set([...agentGroups,candleGroupKey(view.current.market,view.current.timeframe)])],markets=new Set<MarketId>([view.current.market,...current.agents.agents.filter(a=>a.enabled).map(a=>a.marketId),...Object.keys(current.portfolio.spotPositions??{}) as MarketId[],...(current.portfolio.futuresTrades??[]).filter(t=>t.status==="OPEN").map(t=>t.marketId??"SOL")]),[candleResults,priceResults]=await Promise.all([Promise.all(groups.map(async key=>{const [market,timeframe]=key.split(":") as [MarketId,LiveTimeframe];return [key,await fetchCandles(timeframe,market,key===candleGroupKey(view.current.market,view.current.timeframe))] as const})),Promise.all([...markets].map(async market=>{try{return [market,await fetchSharedMarket(market,async()=>{const r=await fetch(`/api/market?symbol=${market}`,{cache:"no-store"}),p=await r.json() as MarketApiResponse;if(!r.ok||!p.success)throw new Error("Market unavailable");return p.data})] as const}catch{return null}}))]),data=new Map(candleResults.flatMap(([key,c])=>c?[[key,c] as const]:[])),quotes=Object.fromEntries(priceResults.filter((x):x is NonNullable<typeof x>=>x!==null).map(([id,d])=>[id,d.price])) as Partial<Record<MarketId,number>>;if(stopped)return;setMarketPrices(old=>({...old,...quotes}));const selected=priceResults.find(x=>x?.[0]===view.current.market);if(selected){setMarketData(selected[1]);setMarketError(null)}else setMarketError("Market data temporarily unavailable");setIsLoading(false);setIsRefreshing(false);if(controllerRef.current?.owns()){const result=evaluateAgentBatch({state:labRef.current,candles:data,prices:quotes,now:Date.now()});if(serializePaperLab(result.state)!==serializePaperLab(labRef.current))commitLab(result.state)}}catch{setIsLoading(false);setIsRefreshing(false)}finally{schedulerBusy.current=false}};void tick();const timer=window.setInterval(()=>void tick(),5000);return()=>{stopped=true;clearInterval(timer)}},[hydrated,controllerAvailable,agentError,agentStore,selectedMarket,chartTimeframe,fetchCandles,commitLab]);
+  useEffect(()=>{if(!hydrated)return;const initial=window.setTimeout(()=>void fetchCandles(chartTimeframe),0);const timer=window.setInterval(()=>void fetchCandles(chartTimeframe),LIVE_TIMEFRAMES[chartTimeframe].refreshMs);return()=>{clearTimeout(initial);clearInterval(timer)}},[hydrated,chartTimeframe,fetchCandles]);  const activeMarketData = marketData?.marketId===selectedMarket ? marketData : null;
   const marketPrice = activeMarketData?.price ?? null;
   const account = calculateMultiMarketAccount(portfolio,marketPrices);
   const metrics = calculatePortfolioMetrics(portfolio, marketPrices.SOL??null);
@@ -227,22 +80,16 @@ export function LiveMarketSection() {
     unrealizedPnl: account.totalUnrealizedPnl,
     trades: unifiedTradeHistory(portfolio).map(t=>({...t,positionSizeUsdc:t.amountUsdc})),
   });
-  const changeAutomation = (settings: AutomationSettings) => {
-      setAutomation(settings);
-      setAutomationStatus({
-        ...emptyStatus(settings.timeframe),
-        signal: automationStatus.signal,
-      });
-    },
-    reset = () => {
+  const reset = () => {
+      if (!controllerAvailable||agentError) return;
       if (
         !confirm(
           "Reset the paper account to $10,000 virtual USDC and erase all simulated trades?",
         )
       )
         return;
-      localStorage.removeItem(PAPER_PORTFOLIO_STORAGE_KEY);
-      setPortfolio(createInitialPaperPortfolio());
+      const next={portfolio:createInitialPaperPortfolio(),agents:emptyAgentStore()};
+      if(commitLab(next))localStorage.removeItem(AUTOMATION_STORAGE_KEY);
     },
     lastAction =
       portfolio.activity.find((item) => item.type === "trade")?.title ??
@@ -271,16 +118,11 @@ export function LiveMarketSection() {
           {[
             ["MARKET", marketError ? "UNAVAILABLE" : "LIVE"],
             ["CHART", chartTimeframe],
-            ["AUTOMATION", automation.enabled ? "RUNNING" : "STOPPED"],
-            ["STRATEGY", automation.strategyId.replaceAll("_", " ")],
+            ["RUNNING AGENTS", String(agentStore.agents.filter(agent=>agent.enabled).length)],
+            ["AGENTS", String(agentStore.agents.length)],
             ["PAPER POSITION", portfolio.spotPositions?.[selectedMarket] ? `LONG ${selectedMarket}` : "FLAT"],
             ["LAST ACTION", lastAction],
-            [
-              "NEXT EVALUATION",
-              new Date(
-                nextCandleClose(automation.timeframe),
-              ).toLocaleTimeString(),
-            ],
+            ["PAPER MODE", "SIMULATED"],
           ].map(([key, value]) => (
             <div key={key}>
               <span>{key}</span>
@@ -345,25 +187,18 @@ export function LiveMarketSection() {
         )}
         <small className="chart-source">
           Coinbase Exchange {MARKET_REGISTRY[selectedMarket].providerDisplayPair} public OHLC · latest candle may still be forming ·
-          automation evaluates closed candles only
+          agents evaluate closed candles only
         </small>
       </section>
       <OpenPositionsSummary portfolio={portfolio} onSelect={(marketId,mode)=>{setCandles([]);setCandleLoading(true);setSelectedMarket(marketId);setTradingMode(mode)}}/>
       <MultiMarketPortfolioOverview portfolio={portfolio} prices={marketPrices} onReset={reset} />
       <AssetBreakdown portfolio={portfolio} prices={marketPrices} />
       {tradingMode==="SPOT"&&<RiskManagementPanel metrics={metrics} levels={risk} />}
+      <AgentDashboard state={{portfolio,agents:agentStore}} prices={marketPrices} controllerAvailable={controllerAvailable&&!agentError} error={agentError} onCreate={(config:AgentConfig)=>{const next={...labRef.current,agents:createAgent(labRef.current.agents,config,crypto.randomUUID(),new Date().toISOString(),false,labRef.current.portfolio.availableUsdc)};commitLab(next)}} onEdit={(id,config)=>commitLab(editAgent(labRef.current,id,config,labRef.current.portfolio.availableUsdc))} onToggle={(id,enabled)=>commitLab({...labRef.current,agents:setAgentEnabled(labRef.current.agents,id,enabled)})} onDelete={(id,leave)=>commitLab(deleteAgent(labRef.current,id,leave))} onReset={reset}/>
       <div className="terminal-control-grid">
-        <AutomationControlPanel
-          settings={automation}
-          status={automationStatus}
-          position={portfolio.spotPositions?.[automation.marketId??"SOL"]?"LONG":"FLAT"}
-          onChange={changeAutomation}
-        />
-        {tradingMode==="SPOT"?<MultiMarketSpotPanel key={selectedMarket} marketId={selectedMarket} portfolio={portfolio} price={marketPrice} onBuy={(input)=>{const result=openMarketSpot(portfolio,{marketId:selectedMarket,...input,price:marketPrice??NaN});if(!result.error)setPortfolio(result.portfolio);return result.error}} onSell={()=>setPortfolio(current=>closeMarketSpot(current,selectedMarket,marketPrice??NaN))}/>:<FuturesPaperPanel key={selectedMarket} prices={marketPrices} marketId={selectedMarket} portfolio={portfolio} price={marketPrice}
-        autonomousEnabled={automation.enabled&&(automation.marketId??"SOL")===selectedMarket&&(automation.tradingMode??"SPOT")==="FUTURES"} onAutonomousChange={(enabled) => setAutomation(current=>({...current,enabled,marketId:selectedMarket,tradingMode:"FUTURES"}))}
-        strategyId={automation.strategyId} onStrategyChange={(strategyId) => setAutomation((current) => ({ ...current, strategyId }))}
-        onOpen={(input) => { const result = openFutures(portfolio, { ...input,marketId:selectedMarket, price: marketPrice ?? NaN }); if (!result.error) setPortfolio(result.portfolio); return result.error; }}
-        onClose={() => setPortfolio((current) => closeFuturesMarket(current,selectedMarket, marketPrice ?? NaN, new Date().toISOString(), true))} />}
+        {tradingMode==="SPOT"?<MultiMarketSpotPanel key={selectedMarket} marketId={selectedMarket} portfolio={portfolio} price={marketPrice} onBuy={(input)=>{if(!controllerAvailable||agentError)return "Paper account is read-only in this tab.";const result=openMarketSpot(labRef.current.portfolio,{marketId:selectedMarket,...input,price:marketPrice??NaN});if(!result.error)commitLab({...labRef.current,portfolio:result.portfolio});return result.error}} onSell={()=>{if(controllerAvailable&&!agentError)commitLab({...labRef.current,portfolio:closeMarketSpot(labRef.current.portfolio,selectedMarket,marketPrice??NaN)})}}/>:<FuturesPaperPanel key={selectedMarket} prices={marketPrices} marketId={selectedMarket} portfolio={portfolio} price={marketPrice}
+        onOpen={(input) => { if(!controllerAvailable||agentError)return "Paper account is read-only in this tab.";const result = openFutures(labRef.current.portfolio, { ...input,marketId:selectedMarket, price: marketPrice ?? NaN }); if (!result.error) commitLab({...labRef.current,portfolio:result.portfolio}); return result.error; }}
+        onClose={() => {if(controllerAvailable&&!agentError)commitLab({...labRef.current,portfolio:closeFuturesMarket(labRef.current.portfolio,selectedMarket, marketPrice ?? NaN, new Date().toISOString(), true)})}} />}
       </div>
       <div className="primary-grid">
         <MarketPanel

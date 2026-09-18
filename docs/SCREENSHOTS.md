@@ -21,3 +21,12 @@ Before capture: wait for loading to finish, avoid error states unless documentin
 - Multi-market history filters and asset breakdown.
 - Autonomous configuration with market and mode.
 - Research market selector with a market-specific benchmark result.
+
+## V1.4 required captures
+
+- Automation Agents dashboard showing several concurrently running BTC, ETH, and SOL paper agents, status, signal, action, position, and per-agent P&L.
+- Agent create/edit panel with mode-specific simulated leverage choices and independent strategy/timeframe/allocation/risk settings.
+- Agent comparison table with raw metrics and insufficient-data score state where applicable.
+- Individual agent details with current paper position, recent trades/events, realized equity curve, and processed-candle count.
+- Shared virtual-account conflict/insufficient-capital activity and market/mode-aware trade history filters.
+- Agent-to-Research link with market/strategy preselected, before a run is explicitly started.

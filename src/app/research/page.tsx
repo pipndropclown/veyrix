@@ -7,7 +7,7 @@ export default function ResearchPage() {
       <main>
         <ResearchWorkspace />
         <footer>
-          <span>Veyrix 1.1 Prototype</span>
+          <span>Veyrix V1.4 Prototype</span>
           <p>Historical paper research · No investment advice</p>
         </footer>
       </main>

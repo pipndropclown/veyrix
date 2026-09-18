@@ -2,6 +2,7 @@ import type { ActivityItem, Signal } from "@/types";
 import type { LiveTimeframe } from "./liveTrading";
 import type { StrategyId } from "./strategy";
 import type { MarketId } from "@/lib/market/marketRegistry";
+import type { AgentOwnership, AgentStore } from "./agents";
 
 export interface PaperTradingConfig {
   startingBalanceUsd: number;
@@ -16,7 +17,7 @@ export interface PaperTradingConfig {
 
 export type TradeExitReason = "STOP_LOSS" | "TAKE_PROFIT" | "STRATEGY_SIGNAL";
 export type PaperTradeSource = "MANUAL" | "AUTONOMOUS";
-export interface FuturesTrade {
+export interface FuturesTrade extends AgentOwnership {
   marketId?: MarketId;
   id: string;
   side: "LONG" | "SHORT";
@@ -37,10 +38,10 @@ export interface FuturesTrade {
   realizedPnl: number | null;
   feesUsdc?: number;
 }
-export interface SpotPosition { marketId: MarketId; quantity: number; averageEntryPrice: number; entryTimestamp: string; tradeId: string; }
-export interface MultiMarketSpotTrade { id:string; marketId:MarketId; mode:"SPOT"; side:"BUY"; source:PaperTradeSource; entryTimestamp:string; exitTimestamp:string|null; entryPrice:number; exitPrice:number|null; quantity:number; amountUsdc:number; realizedPnl:number|null; status:"OPEN"|"CLOSED"; exitReason:"MANUAL"|"STOP_LOSS"|"TAKE_PROFIT"|null; stopLoss:number|null; takeProfit:number|null; }
+export interface SpotPosition extends AgentOwnership { marketId: MarketId; quantity: number; averageEntryPrice: number; entryTimestamp: string; tradeId: string; }
+export interface MultiMarketSpotTrade extends AgentOwnership { id:string; marketId:MarketId; mode:"SPOT"; side:"BUY"; source:PaperTradeSource; entryTimestamp:string; exitTimestamp:string|null; entryPrice:number; exitPrice:number|null; quantity:number; amountUsdc:number; realizedPnl:number|null; status:"OPEN"|"CLOSED"; exitReason:"MANUAL"|"STOP_LOSS"|"TAKE_PROFIT"|null; stopLoss:number|null; takeProfit:number|null; }
 
-export interface PaperTrade {
+export interface PaperTrade extends AgentOwnership {
   id: string;
   executionId: string;
   pair: "SOL/USDC";
@@ -68,6 +69,7 @@ export interface PaperTrade {
 }
 
 export interface PaperPortfolioState {
+  agentState?: AgentStore;
   version: 1;
   availableUsdc: number;
   solBalance: number;

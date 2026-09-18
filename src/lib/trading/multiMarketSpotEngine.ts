@@ -2,7 +2,7 @@ import type { MarketId } from "@/lib/market/marketRegistry";
 import type { MultiMarketSpotTrade, PaperPortfolioState, PaperTradeSource } from "@/types/trading";
 import { localTradingDay, dailyLossLimitUsd } from "./paperPortfolio.ts";
 function rollDay(portfolio:PaperPortfolioState,timestamp:string):PaperPortfolioState { const day=localTradingDay(new Date(timestamp));return portfolio.tradingDay===day?portfolio:{...portfolio,tradingDay:day,dailyRealizedPnl:0,tradingPausedForDay:false}; }
-export function openMarketSpot(portfolio:PaperPortfolioState,input:{marketId:MarketId;amountUsdc:number;price:number;source?:PaperTradeSource;stopLoss?:number|null;takeProfit?:number|null;timestamp?:string}){
+export function openMarketSpot(portfolio:PaperPortfolioState,input:{marketId:MarketId;amountUsdc:number;price:number;source?:PaperTradeSource;stopLoss?:number|null;takeProfit?:number|null;timestamp?:string;agentId?:string;agentName?:string}){
   portfolio=rollDay(portfolio,input.timestamp??new Date().toISOString());
   if(portfolio.tradingPausedForDay)return{portfolio,error:"New entries are paused by the virtual daily loss limit."};
   if(portfolio.spotPositions?.[input.marketId])return{portfolio,error:`${input.marketId} Spot already has an open position.`};
@@ -10,8 +10,9 @@ export function openMarketSpot(portfolio:PaperPortfolioState,input:{marketId:Mar
   if((input.stopLoss!=null&&(!Number.isFinite(input.stopLoss)||input.stopLoss<=0||input.stopLoss>=input.price))||(input.takeProfit!=null&&(!Number.isFinite(input.takeProfit)||input.takeProfit<=input.price)))return{portfolio,error:"Stop loss and take profit must be on the correct side of entry."};
   const timestamp=input.timestamp??new Date().toISOString(),quantity=input.amountUsdc/input.price,id=`SP-${input.marketId}-${timestamp.replace(/\D/g,"")}-${(portfolio.multiMarketSpotTrades??[]).length}`;
   if(!Number.isFinite(quantity)||quantity<=0)return{portfolio,error:"Invalid simulated quantity."};
-  const trade:MultiMarketSpotTrade={id,marketId:input.marketId,mode:"SPOT",side:"BUY",source:input.source??"MANUAL",entryTimestamp:timestamp,exitTimestamp:null,entryPrice:input.price,exitPrice:null,quantity,amountUsdc:input.amountUsdc,realizedPnl:null,status:"OPEN",exitReason:null,stopLoss:input.stopLoss??null,takeProfit:input.takeProfit??null};
-  return{portfolio:{...portfolio,availableUsdc:portfolio.availableUsdc-input.amountUsdc,spotPositions:{...(portfolio.spotPositions??{}),[input.marketId]:{marketId:input.marketId,quantity,averageEntryPrice:input.price,entryTimestamp:timestamp,tradeId:id}},multiMarketSpotTrades:[trade,...(portfolio.multiMarketSpotTrades??[])]},error:null};
+  const ownership=input.source==="AUTONOMOUS"&&input.agentId?{agentId:input.agentId,agentName:input.agentName??"Paper agent"}:{};
+  const trade:MultiMarketSpotTrade={...ownership,id,marketId:input.marketId,mode:"SPOT",side:"BUY",source:input.source??"MANUAL",entryTimestamp:timestamp,exitTimestamp:null,entryPrice:input.price,exitPrice:null,quantity,amountUsdc:input.amountUsdc,realizedPnl:null,status:"OPEN",exitReason:null,stopLoss:input.stopLoss??null,takeProfit:input.takeProfit??null};
+  return{portfolio:{...portfolio,availableUsdc:portfolio.availableUsdc-input.amountUsdc,spotPositions:{...(portfolio.spotPositions??{}),[input.marketId]:{...ownership,marketId:input.marketId,quantity,averageEntryPrice:input.price,entryTimestamp:timestamp,tradeId:id}},multiMarketSpotTrades:[trade,...(portfolio.multiMarketSpotTrades??[])]},error:null};
 }
 export function closeMarketSpot(portfolio:PaperPortfolioState,marketId:MarketId,price:number,timestamp=new Date().toISOString(),manual=true):PaperPortfolioState{
   portfolio=rollDay(portfolio,timestamp);

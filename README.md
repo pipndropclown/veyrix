@@ -5,11 +5,11 @@ GitHub: https://github.com/pipndropclown/veyrix
 
 ## Autonomous Strategy Research Lab
 
-Veyrix is a live paper-trading terminal and strategy-research laboratory for SOL markets. It helps researchers test, compare, and validate blockchain trading strategies without risking real capital.
+Veyrix is a live paper-trading terminal and strategy-research laboratory for BTC, ETH, and SOL markets. It helps researchers test, compare, and validate blockchain trading strategies without risking real capital.
 
 ## What Veyrix Is
 
-Veyrix combines live public SOL market data, a local paper account, deterministic historical simulation, and reproducible validation reports. It is a research prototype—not an exchange, wallet, financial adviser, or real-money trading bot.
+Veyrix combines live public BTC, ETH, and SOL market data, one local shared virtual-USDC account, deterministic historical simulation, and reproducible validation reports. It is a research prototype—not an exchange, wallet, financial adviser, or real-money trading bot.
 
 ## Problem
 
@@ -88,3 +88,9 @@ Future research may broaden datasets, improve evidence diagnostics, and add port
 ## V1.3 Multi-Market Trading Lab
 
 Veyrix supports BTC, ETH, and SOL Spot Paper and Futures Paper markets through Coinbase Exchange public USD reference feeds. Paper positions settle only in virtual USDC. A centralized registry controls provider IDs and display precision, one shared virtual account funds all markets, and one market-specific autonomous configuration can run at a time. Historical backtesting and reproducible research can select BTC, ETH, or SOL.
+
+## V1.4 Multi-Agent Automation & Performance Analytics
+
+Up to six independent browser-side paper agents can run at once across BTC, ETH, and SOL, in Spot or simulated Futures mode. Each agent has its own strategy, timeframe, sizing preference, risk levels, lifecycle, processed-candle IDs, trade ownership, and analytics. Agents share one virtual USDC account and cannot overlap positions for the same market and mode. A single browser scheduler groups candles by market/timeframe and caches shared requests; only the latest safe closed candle is evaluated after a browser restart. Pausing blocks strategy actions while stop, target, and simulated liquidation protection continue. Removing an agent with an open position requires confirmation and leaves the position open for manual control.
+
+The Automation Agents dashboard includes per-agent realized and unrealized results, a comparison table, an individual realized equity curve, and an observable 0–100 Veyrix Agent Score. The score is withheld until five trades are completed and summarizes past simulated results; it is not investment advice or a forecast. Agent settings and trade ownership are stored locally in Guest Mode. Read [docs/V1.4.md](docs/V1.4.md) for the score formula, migration, limits, and known constraints.

@@ -22,6 +22,7 @@ export function openFutures(portfolio: PaperPortfolioState, input: {
   side: "LONG" | "SHORT"; leverage: 1 | 2 | 3 | 5; marginUsdc: number;
   price: number; stopLoss: number | null; takeProfit: number | null;
   source?: PaperTradeSource; timestamp?: string;
+  agentId?: string; agentName?: string;
 }): { portfolio: PaperPortfolioState; error: string | null } {
   portfolio = rollDay(portfolio, input.timestamp ?? new Date().toISOString());
   const { side, leverage, marginUsdc, price, stopLoss, takeProfit } = input;
@@ -43,6 +44,7 @@ export function openFutures(portfolio: PaperPortfolioState, input: {
   if (!Number.isFinite(exposureUsdc) || !Number.isFinite(quantitySol)) return { portfolio, error: "Invalid exposure." };
   const timestamp = input.timestamp ?? new Date().toISOString();
   const trade: FuturesTrade = {
+    ...(input.source === "AUTONOMOUS" && input.agentId ? { agentId: input.agentId, agentName: input.agentName ?? "Paper agent" } : {}),
     id: `FT-${marketId}-${timestamp.replace(/\D/g, "")}-${(portfolio.futuresTrades ?? []).length}`,
     marketId,
     side, leverage, marginUsdc, exposureUsdc, quantitySol, entryPrice: price,

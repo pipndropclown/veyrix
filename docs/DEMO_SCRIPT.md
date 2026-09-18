@@ -39,3 +39,13 @@ Mention that reviewers can use Guest Mode immediately, then optionally create an
 3. Switch charts without modifying either position; show market-filtered markers and history.
 4. Configure one autonomous market, strategy, timeframe, mode, leverage, allocation, stop, and target.
 5. Open Research, select BTC, ETH, or SOL, and run a market-specific backtest.
+
+## V1.4 demo
+
+1. Create a BTC Spot Momentum agent, an ETH Futures Mean Reversion agent, and a SOL Spot Moving Average agent; show each starts paused and has independent settings.
+2. Start the three agents and show active count, per-agent status, position, signal, and shared virtual USDC availability.
+3. Show the same-market position conflict message, and point out that a different market/mode can execute if capital remains.
+4. Pause one agent, then show risk protections still apply to its open simulated position. Rename an agent and show the agent identity in history/activity.
+5. Open an individual agent detail view, compare agent metrics, and select one realized equity curve. Explain the five-trade score threshold and visible score formula.
+6. Open Research from an agent and show its market/strategy context. Start a research run only after the user selects the research period and clicks Run.
+7. Reiterate that all activity is browser-side paper simulation; nothing is signed, borrowed, deposited, or sent to an exchange.
