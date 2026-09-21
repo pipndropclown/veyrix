@@ -28,6 +28,10 @@ export function calculateAgentPerformance(agentId: string, state: PaperLabState,
     return sum + (price - t.entryPrice) * t.quantity;
   }, 0);
   const equityCurve: EquityPoint[] = [];
+  if (closed.length) {
+    const firstEntry = closed.reduce((earliest, trade) => Date.parse(trade.entryTimestamp) < Date.parse(earliest) ? trade.entryTimestamp : earliest, closed[0].entryTimestamp);
+    equityCurve.push({ timestamp: firstEntry, equity: 0, tradeId: null });
+  }
   let equity = 0, peak = 0, maximumDrawdown = 0;
   for (const trade of closed) {
     equity += trade.realizedPnl!; peak = Math.max(peak, equity);
@@ -73,8 +77,10 @@ export function aggregateAgentPerformance(state: PaperLabState, prices: Partial<
   const totalAuto = unifiedTradeHistory(state.portfolio).filter(t => t.source === "AUTONOMOUS");
   const performed = profiles.filter(x => x.performance.completedTrades > 0);
   const worstDrawdown = profiles.reduce((max, x) => Math.max(max, x.performance.maximumDrawdown), 0);
-  const capitalDeployed = Object.values(state.portfolio.spotPositions ?? {}).reduce((sum, p) => sum + (p ? p.quantity * p.averageEntryPrice : 0), 0)
-    + (state.portfolio.futuresTrades ?? []).filter(t => t.status === "OPEN").reduce((sum, t) => sum + t.marginUsdc, 0);
+  const agentIds = new Set(profiles.map(({ agent }) => agent.id));
+  const capitalDeployed = totalAuto
+    .filter(t => t.status === "OPEN" && t.agentId && agentIds.has(t.agentId) && !t.agentDetached)
+    .reduce((sum, t) => sum + (t.mode === "FUTURES" ? t.marginUsdc! : t.amountUsdc), 0);
   return { activeAgents: active.length, totalAutonomousTrades: totalAuto.length, combinedRealizedPnl: profiles.reduce((s, x) => s + x.performance.netRealizedPnl, 0),
     combinedUnrealizedPnl: profiles.reduce((s, x) => s + x.performance.unrealizedPnl, 0), bestAgent: performed.sort((a, b) => b.performance.netRealizedPnl - a.performance.netRealizedPnl)[0]?.agent ?? null,
     worstDrawdown, capitalDeployed, profiles };

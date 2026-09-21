@@ -3,7 +3,7 @@ export function ProductHero() {
   return (
     <section className="product-hero" aria-labelledby="product-title">
       <div>
-        <span>VEYRIX 1.3 · MULTI-MARKET TRADING LAB</span>
+        <span>VEYRIX V1.4 · MULTI-AGENT AUTOMATION &amp; ANALYTICS</span>
         <h1 id="product-title">Autonomous Strategy Research Lab</h1>
         <p>
           Spot and futures paper trading, historical backtesting, and rigorous

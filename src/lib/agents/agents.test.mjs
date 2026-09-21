@@ -6,7 +6,8 @@ import { openFutures, closeFuturesMarket } from "../trading/futuresEngine.ts";
 import { defaultAgentName, createAgent, deleteAgent, editAgent, emptyAgentStore, migrateLegacyAutomation, setAgentEnabled, validateAgentConfig } from "./agentModel.ts";
 import { evaluateAgentBatch, agentCandleId, groupEnabledAgents } from "./agentEngine.ts";
 import { fetchSharedCandles, clearSharedMarketCacheForTests } from "./candleScheduler.ts";
-import { calculateAgentPerformance } from "./agentPerformance.ts";
+import { aggregateAgentPerformance, calculateAgentPerformance } from "./agentPerformance.ts";
+import { automationCandleId } from "../market/liveCandles.ts";
 import { restorePaperLab, serializePaperLab } from "./agentPersistence.ts";
 import { DEFAULT_AUTOMATION } from "../trading/automationEngine.ts";
 import { filterTradeHistory } from "../trading/tradeHistory.ts";
@@ -18,6 +19,44 @@ const add = (state,c=cfg(),id=`a${state.agents.agents.length+1}`,enabled=true)=>
 const candles = (rise=true, start=now-9*3600000)=>Array.from({length:8},(_,i)=>{const close=rise?100+i:108-i;return {timestamp:stamp(start+i*3600000),open:close,high:close+1,low:close-1,close,volume:10}});
 const datasets=(map={})=>new Map(Object.entries(map));
 const batch=(state,prices={BTC:108,ETH:108,SOL:108},data=candles(),time=now)=>evaluateAgentBatch({state,candles:datasets({"BTC:1H":data,"ETH:1H":data,"SOL:1H":data,"BTC:15m":data}),prices,now:time});
+
+test("migrated candles remain consumed after reload without suppressing another agent", () => {
+ for (const [marketId, mode, oldFormat] of [["BTC", "SPOT", false], ["ETH", "FUTURES", false], ["SOL", "SPOT", true]]) {
+  const timestamp = candles().at(-1).timestamp;
+  const id = oldFormat ? automationCandleId("momentum", "1H", timestamp) : automationCandleId("momentum", "1H", timestamp, marketId, mode);
+  const legacy = {...DEFAULT_AUTOMATION, enabled:true, marketId, tradingMode:mode, timeframe:"1H", processedCandleIds:[id]};
+  let state = migrateLegacyAutomation({portfolio:createInitialPaperPortfolio(), agents:emptyAgentStore()}, legacy, stamp());
+  state = restorePaperLab({portfolioValue:JSON.parse(serializePaperLab(state))}).state;
+  state = add(state, cfg(marketId, mode), "independent");
+  const result = batch(state);
+  assert.equal(result.outcomes.find(x => x.agentId === "legacy-v13").outcome, "DUPLICATE");
+  assert.match(result.outcomes.find(x => x.agentId === "independent").outcome, /opened/);
+ }
+});
+
+test("automation deployed capital excludes manual, unassigned, and detached positions", () => {
+ let state = add({portfolio:createInitialPaperPortfolio(), agents:emptyAgentStore()}, cfg(), "spot", false);
+ state = add(state, cfg("ETH", "FUTURES"), "future", false);
+ state.portfolio = openMarketSpot(state.portfolio, {marketId:"BTC", amountUsdc:1000, price:100, source:"AUTONOMOUS", agentId:"spot", timestamp:stamp()}).portfolio;
+ state.portfolio = openMarketSpot(state.portfolio, {marketId:"ETH", amountUsdc:200, price:100, timestamp:stamp()}).portfolio;
+ state.portfolio = openMarketSpot(state.portfolio, {marketId:"SOL", amountUsdc:300, price:100, source:"AUTONOMOUS", timestamp:stamp()}).portfolio;
+ state.portfolio = openFutures(state.portfolio, {marketId:"ETH", side:"LONG", leverage:2, marginUsdc:500, price:100, source:"AUTONOMOUS", agentId:"future", stopLoss:null, takeProfit:null, timestamp:stamp()}).portfolio;
+ state.portfolio = openFutures(state.portfolio, {marketId:"BTC", side:"LONG", leverage:2, marginUsdc:400, price:100, source:"MANUAL", stopLoss:null, takeProfit:null, timestamp:stamp()}).portfolio;
+ assert.equal(aggregateAgentPerformance(state, {}).capitalDeployed, 1500);
+ state = deleteAgent(state, "spot", true);
+ assert.equal(aggregateAgentPerformance(state, {}).capitalDeployed, 500);
+});
+
+test("one completed trade has a drawable equity curve beginning at zero", () => {
+ const state = add({portfolio:createInitialPaperPortfolio(), agents:emptyAgentStore()}, cfg("BTC", "FUTURES"), "curve", false);
+ assert.deepEqual(calculateAgentPerformance("curve", state, {}).equityCurve, []);
+ state.portfolio = openFutures(state.portfolio, {marketId:"BTC", side:"LONG", leverage:2, marginUsdc:1000, price:100, source:"AUTONOMOUS", agentId:"curve", stopLoss:null, takeProfit:null, timestamp:stamp()}).portfolio;
+ state.portfolio = closeFuturesMarket(state.portfolio, "BTC", 110, stamp(now + 3600000), true);
+ const performance = calculateAgentPerformance("curve", state, {});
+ assert.equal(performance.equityCurve.length, 2);
+ assert.deepEqual(performance.equityCurve[0], {timestamp:stamp(), equity:0, tradeId:null});
+ assert.equal(performance.equityCurve[1].equity, performance.netRealizedPnl);
+});
 
 test("agent config accepts Spot and Futures, rejects unsupported market, leverage, and allocation",()=>{
  assert.equal(validateAgentConfig(cfg()),null);assert.equal(validateAgentConfig(cfg("ETH","FUTURES")),null);

@@ -1,4 +1,4 @@
-import { closedCandles } from "../market/liveCandles.ts";
+import { automationCandleId, closedCandles } from "../market/liveCandles.ts";
 import { getStrategy } from "../strategy/strategyRegistry.ts";
 import { closeFuturesMarket, openFutures } from "../trading/futuresEngine.ts";
 import { closeMarketSpot, openMarketSpot } from "../trading/multiMarketSpotEngine.ts";
@@ -46,7 +46,14 @@ export function evaluateAgentBatch(input: { state: PaperLabState; candles: Candl
     const latest = closedCandles(data, agent.timeframe, input.now).at(-1);
     if (!latest) continue;
     const id = agentCandleId(agent, latest.timestamp);
-    if (agent.processedCandleIds.includes(id)) { outcomes.push({ agentId: agent.id, outcome: "DUPLICATE" }); continue; }
+    const processedIds = [id];
+    if (agent.id === "legacy-v13") {
+      processedIds.push(automationCandleId(agent.strategyId, agent.timeframe, latest.timestamp, agent.marketId, agent.mode));
+      if (agent.marketId === "SOL" && agent.mode === "SPOT") {
+        processedIds.push(automationCandleId(agent.strategyId, agent.timeframe, latest.timestamp));
+      }
+    }
+    if (processedIds.some(candleId => agent.processedCandleIds.includes(candleId))) { outcomes.push({ agentId: agent.id, outcome: "DUPLICATE" }); continue; }
     const decision = getStrategy(agent.strategyId).evaluate(closedCandles(data, agent.timeframe, input.now).map(c => ({ timestamp: c.timestamp, price: c.close })));
     const history = agent.mode === "SPOT" ? [...(state.portfolio.multiMarketSpotTrades ?? []), ...state.portfolio.trades.filter(t=>t.status==="OPEN").map(t=>({...t,marketId:"SOL",agentId:undefined}))] : state.portfolio.futuresTrades ?? [];
     const own = history.find(t => t.status === "OPEN" && (t.marketId ?? "SOL") === agent.marketId && "agentId" in t && t.agentId === agent.id && !("agentDetached" in t && t.agentDetached));
